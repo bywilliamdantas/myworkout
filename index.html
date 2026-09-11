@@ -123,11 +123,20 @@
     font-weight:800; font-size:15px; color:#0a0a0a; flex-shrink:0;
   }
   .workout-title-input{
-    flex:1; background:none; border:none; color:var(--text-primary);
-    font-size:16px; font-weight:700; padding:4px 0;
+    flex:1; background:none;
+    border:none; border-bottom:1.5px dashed rgba(255,255,255,0.16);
+    color:var(--text-primary);
+    font-size:16px; font-weight:700; padding:4px 2px 6px;
     -webkit-appearance:none; min-width:0;
+    transition:border-color .15s ease;
   }
-  .workout-title-input:focus{ outline:none; }
+  .workout-title-input:focus{
+    outline:none;
+    border-bottom:1.5px solid var(--accent);
+  }
+  .edit-pencil{
+    font-size:12px; color:var(--text-muted); flex-shrink:0; margin-left:-4px;
+  }
   .icon-btn{
     background:rgba(255,255,255,0.05); border:none; color:var(--text-muted);
     width:30px;height:30px;border-radius:50%; font-size:14px;
@@ -450,6 +459,7 @@ function render(){
       <div class="workout-head">
         <div class="workout-chip" style="background:${color}">${letter}</div>
         <input class="workout-title-input" data-role="wname" data-letter="${letter}" value="${escapeAttr(w.name)}" placeholder="Nome do treino">
+        <span class="edit-pencil">✎</span>
         ${state.order.length > 1 ? `<button class="icon-btn" data-role="delworkout" data-letter="${letter}" aria-label="remover treino">✕</button>` : ""}
       </div>
       ${w.exercises.length > 0 ? `
@@ -579,6 +589,9 @@ function attachHandlers(){
     el.addEventListener("change", async () => {
       state.workouts[el.dataset.letter].name = el.value || `Treino ${el.dataset.letter}`;
       await persist();
+    });
+    el.addEventListener("keydown", (ev) => {
+      if(ev.key === "Enter") el.blur();
     });
   });
 
