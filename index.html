@@ -174,30 +174,40 @@
   .icon-btn:active{ background:rgba(255,255,255,0.12); }
 
   .exercise-row{
-    display:flex; gap:8px; align-items:center; margin-bottom:8px;
+    background:rgba(255,255,255,0.03);
+    border:1px solid rgba(255,255,255,0.05);
+    border-radius:14px; padding:12px; margin-bottom:10px;
   }
-  .exercise-row input{
-    background:rgba(255,255,255,0.05);
+  .ex-row-top{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .ex-name-input{
+    flex:1; background:rgba(255,255,255,0.05);
     border:1px solid rgba(255,255,255,0.06);
-    color:var(--text-primary);
-    border-radius:10px; padding:9px 10px; font-size:13px;
+    color:var(--text-primary); font-weight:600;
+    border-radius:10px; padding:10px 12px; font-size:14px;
     -webkit-appearance:none; min-width:0;
   }
-  .exercise-row .ex-name{ flex:1.6; }
-  .exercise-row .ex-sets{ flex:0.7; text-align:center; }
-  .exercise-row .ex-reps{ flex:0.7; text-align:center; }
-  .exercise-row .ex-del{
-    background:none; border:none; color:var(--text-muted);
-    padding:4px 6px; flex-shrink:0; -webkit-appearance:none; display:flex;
+  .progress-btn, .ex-del{
+    background:rgba(255,255,255,0.05); border:none; color:var(--text-muted);
+    width:34px;height:34px;border-radius:50%; flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    -webkit-appearance:none;
   }
-  .ex-labels{
-    display:flex; gap:8px; padding:0 0 6px;
+  .progress-btn:disabled{ opacity:0.25; }
+  .ex-row-bottom{ display:flex; gap:10px; }
+  .ex-field{ flex:1; display:flex; flex-direction:column; gap:4px; }
+  .ex-field span{
+    font-size:9.5px; color:var(--text-muted); letter-spacing:0.04em;
+    text-transform:uppercase; padding-left:2px;
   }
-  .ex-labels span{ font-size:9.5px; color:var(--text-muted); letter-spacing:0.03em; }
-  .ex-labels .ex-name{ flex:1.6; }
-  .ex-labels .ex-sets{ flex:0.7; text-align:center; }
-  .ex-labels .ex-reps{ flex:0.7; text-align:center; }
-  .ex-labels .ex-del{ width:24px; flex-shrink:0; }
+  .ex-field input{
+    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.06);
+    color:var(--text-primary); border-radius:10px; padding:9px 10px;
+    font-size:14px; text-align:center; -webkit-appearance:none; width:100%;
+  }
+  .rest-note{
+    text-align:center; font-size:12.5px; color:var(--text-muted);
+    padding:14px 4px 2px;
+  }
 
   .empty-ex{
     text-align:center; font-size:12px; color:var(--text-muted);
@@ -314,6 +324,37 @@
   }
   .sheet-empty{ text-align:center; font-size:12.5px; color:var(--text-muted); padding:18px 10px; margin-bottom:14px; }
   .sheet-actions{ display:flex; flex-direction:column; gap:10px; }
+
+  /* ---------- celebração ao concluir ---------- */
+  @keyframes celebrate{ 0%{transform:scale(1);} 35%{transform:scale(1.015);} 100%{transform:scale(1);} }
+  .card.celebrate{
+    animation:celebrate .5s ease;
+    box-shadow:0 0 0 2px rgba(48,209,88,0.45), 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+
+  /* ---------- progresso por exercício ---------- */
+  .progress-list{ display:flex; flex-direction:column; gap:2px; margin-top:14px; max-height:200px; overflow-y:auto; }
+  .progress-row{
+    display:flex; justify-content:space-between; gap:8px;
+    font-size:12.5px; color:var(--text-label);
+    padding:8px 4px; border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+  .progress-row span:first-child{ color:var(--text-muted); width:44px; flex-shrink:0; }
+
+  /* ---------- lembretes ---------- */
+  .reminder-row{ display:flex; align-items:center; justify-content:space-between; font-size:13.5px; }
+  .reminder-row input[type=checkbox]{ width:22px;height:22px; accent-color:var(--accent); }
+  .reminder-time-row{
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:13px; color:var(--text-muted);
+    padding-top:12px; margin-top:10px; border-top:1px solid rgba(255,255,255,0.06);
+  }
+  .reminder-time-row input[type=time]{
+    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08);
+    color:var(--text-primary); border-radius:8px; padding:7px 9px; font-size:13px;
+    -webkit-appearance:none;
+  }
+  .reminder-note{ font-size:10.5px; color:var(--text-muted); line-height:1.5; margin:14px 0 0; }
 </style>
 </head>
 <body>
@@ -332,664 +373,6 @@
 <div id="sheetRoot"></div>
 <div class="toast" id="toast"></div>
 
-<script>
-const STORAGE_KEY = "gym-data";
-const PALETTE = ["#ff5a1f", "#3d9dff", "#30d158", "#ffd60a", "#bf5af2", "#64d2ff"];
-const WEEKDAY_FULL = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
-const MONTH_NAMES = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
-const MONTH_NAMES_FULL = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
-
-const ICONS = {
-  close: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>`,
-  check: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>`,
-  pencil: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
-  plus: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
-  up: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>`,
-  down: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`,
-  download: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>`,
-  upload: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 5h16"/></svg>`,
-  trash: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg>`
-};
-
-function pad(n){ return String(n).padStart(2,"0"); }
-function dateKeyFromDate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
-function todayKey(){ return dateKeyFromDate(new Date()); }
-function colorFor(letter, order){
-  const idx = order.indexOf(letter);
-  return PALETTE[idx >= 0 ? idx % PALETTE.length : 0];
-}
-
-let state = {
-  order: ["A","B","C"],
-  workouts: {
-    A: { name: "Treino A", exercises: [] },
-    B: { name: "Treino B", exercises: [] },
-    C: { name: "Treino C", exercises: [] }
-  },
-  sessions: {}   // { "2026-09-11": { letter:"A", log: { exId: {weight,reps} } } }
-};
-let loadFailed = false;
-let saveInFlight = false;
-let exIdCounter = 1;
-let sheetState = null;      // { dateKey, letter, log }
-let updateAvailable = null; // service worker registration with a waiting worker
-
-function newExId(){ return "ex" + (exIdCounter++); }
-
-function initExIdCounter(){
-  let max = 0;
-  Object.values(state.workouts).forEach(w => {
-    (w.exercises || []).forEach(ex => {
-      const n = parseInt(String(ex.id).replace("ex",""), 10);
-      if(!isNaN(n) && n > max) max = n;
-    });
-  });
-  exIdCounter = max + 1;
-}
-
-function migrateSessions(s){
-  if(!s.sessions) { s.sessions = {}; return; }
-  Object.keys(s.sessions).forEach(k => {
-    if(typeof s.sessions[k] === "string"){
-      s.sessions[k] = { letter: s.sessions[k], log: {} };
-    } else if(s.sessions[k] && !s.sessions[k].log){
-      s.sessions[k].log = {};
-    }
-  });
-}
-
-function sessionLetter(key){
-  const e = state.sessions[key];
-  if(!e) return null;
-  return typeof e === "string" ? e : e.letter;
-}
-function sessionLog(key){
-  const e = state.sessions[key];
-  if(!e || typeof e === "string") return {};
-  return e.log || {};
-}
-
-// ---------- storage (localStorage) ----------
-function storageAvailable(){
-  try{
-    const testKey = "__storage_test__";
-    window.localStorage.setItem(testKey, "1");
-    window.localStorage.removeItem(testKey);
-    return true;
-  }catch(e){
-    return false;
-  }
-}
-
-async function withRetry(fn, attempts=3, baseDelay=250){
-  let lastErr;
-  for(let i=0;i<attempts;i++){
-    try{ return fn(); }
-    catch(e){
-      lastErr = e;
-      if(i < attempts-1) await new Promise(r => setTimeout(r, baseDelay * Math.pow(2,i)));
-    }
-  }
-  throw lastErr;
-}
-
-async function loadData(){
-  try{
-    const raw = await withRetry(() => window.localStorage.getItem(STORAGE_KEY), 3, 200);
-    if(raw){
-      const parsed = JSON.parse(raw);
-      if(parsed && parsed.order && parsed.workouts){
-        state = parsed;
-        migrateSessions(state);
-      }
-    }
-    loadFailed = false;
-  }catch(e){
-    loadFailed = true;
-  }
-  initExIdCounter();
-}
-
-async function persist(){
-  saveInFlight = true;
-  updateSyncUI("busy");
-  try{
-    await withRetry(() => window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)), 3, 250);
-    saveInFlight = false;
-    updateSyncUI("ok");
-  }catch(e){
-    saveInFlight = false;
-    updateSyncUI("err");
-  }
-}
-
-function updateSyncUI(s){
-  const row = document.getElementById("syncRow");
-  const dot = document.getElementById("syncDot");
-  const text = document.getElementById("syncText");
-  const retryBtn = document.getElementById("syncRetryBtn");
-  dot.className = "sync-dot";
-  retryBtn.style.display = "none";
-  if(s === "busy"){ row.classList.remove("hidden"); dot.classList.add("busy"); text.textContent = "salvando…"; }
-  else if(s === "ok"){ dot.classList.add("ok"); text.textContent = "salvo neste aparelho"; setTimeout(() => { if(!saveInFlight) row.classList.add("hidden"); }, 1300); }
-  else if(s === "err"){ row.classList.remove("hidden"); dot.classList.add("err"); text.textContent = "falha ao salvar"; retryBtn.style.display = "inline"; }
-}
-document.getElementById("syncRetryBtn").addEventListener("click", () => persist());
-
-let toastTimer;
-function showToast(msg){
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
-}
-
-// ---------- derived data ----------
-function lastSessionEntry(){
-  const keys = Object.keys(state.sessions).sort();
-  if(keys.length === 0) return null;
-  const lastDate = keys[keys.length - 1];
-  return { date: lastDate, letter: sessionLetter(lastDate) };
-}
-
-function nextWorkoutLetter(){
-  const last = lastSessionEntry();
-  if(!last) return state.order[0];
-  const idx = state.order.indexOf(last.letter);
-  if(idx === -1) return state.order[0];
-  return state.order[(idx + 1) % state.order.length];
-}
-
-function computeStreak(){
-  let cursor = new Date();
-  if(!state.sessions[todayKey()]){
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  let streak = 0;
-  while(state.sessions[dateKeyFromDate(cursor)]){
-    streak++;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
-
-function totalSessions(){ return Object.keys(state.sessions).length; }
-
-function sessionsThisWeek(){
-  const now = new Date();
-  const day = now.getDay();
-  const start = new Date(now);
-  start.setDate(now.getDate() - day);
-  start.setHours(0,0,0,0);
-  let c = 0;
-  for(const key of Object.keys(state.sessions)){
-    const [y,m,d] = key.split("-").map(Number);
-    const dt = new Date(y, m-1, d);
-    if(dt >= start) c++;
-  }
-  return c;
-}
-
-// última carga/reps registradas para um exercício antes (ou não) de uma data
-function lastLoggedValue(exId, beforeKey){
-  const keys = Object.keys(state.sessions).filter(k => k < beforeKey).sort();
-  for(let i = keys.length - 1; i >= 0; i--){
-    const log = sessionLog(keys[i]);
-    if(log && log[exId] && (log[exId].weight || log[exId].reps)) return log[exId];
-  }
-  return null;
-}
-
-// ---------- rendering ----------
-function render(){
-  const app = document.getElementById("app");
-  const next = nextWorkoutLetter();
-  const doneToday = sessionLetter(todayKey());
-  const streak = computeStreak();
-  const total = totalSessions();
-  const thisWeek = sessionsThisWeek();
-  const now = new Date();
-  const weekdayLabel = WEEKDAY_FULL[now.getDay()];
-
-  let topBanner = "";
-  if(loadFailed){
-    topBanner += `<div class="banner"><span>Não foi possível carregar seus dados salvos.</span><button id="retryLoadBtn">tentar de novo</button></div>`;
-  }
-  if(updateAvailable){
-    topBanner += `<div class="banner info"><span>Nova versão do app disponível.</span><button id="updateBtn">atualizar</button></div>`;
-  }
-
-  let html = "";
-
-  // ----- hero -----
-  html += `<div class="card">
-    ${topBanner}
-    <p class="eyebrow">${doneToday ? "TREINO DE HOJE" : "PRÓXIMO TREINO"} · ${weekdayLabel}</p>
-    <div class="hero-top">
-      <div class="letter-badge" style="background:${colorFor(doneToday || next, state.order)}">${doneToday || next}</div>
-      <div class="hero-info">
-        <div class="workout-name">${escapeHtml(state.workouts[doneToday || next]?.name || `Treino ${doneToday || next}`)}</div>
-        <div class="workout-sub">${doneToday ? "concluído hoje" : `ciclo: ${state.order.join(" → ")} → ${state.order[0]}...`}</div>
-      </div>
-    </div>
-    <div class="stats-row">
-      <div class="stat highlight"><div class="stat-num">${streak}</div><div class="stat-label">dias seguidos</div></div>
-      <div class="stat"><div class="stat-num">${thisWeek}</div><div class="stat-label">essa semana</div></div>
-      <div class="stat"><div class="stat-num">${total}</div><div class="stat-label">total geral</div></div>
-    </div>
-    ${doneToday
-      ? `<button class="cta-btn done" disabled>${ICONS.check} Treino ${doneToday} concluído</button>
-         <div class="hero-links">
-           <button class="undo-link" id="editTodayBtn">editar registro</button>
-           <button class="undo-link" id="undoTodayBtn">desfazer</button>
-         </div>`
-      : `<button class="cta-btn" id="markDoneBtn">Marcar Treino ${next} como feito</button>`
-    }
-  </div>`;
-
-  // ----- workouts management -----
-  html += `<p class="section-title">Meus treinos</p>`;
-  state.order.forEach((letter, idx) => {
-    const w = state.workouts[letter];
-    const color = colorFor(letter, state.order);
-    html += `<div class="card workout-card" data-letter="${letter}">
-      <div class="workout-head">
-        <div class="reorder-btns">
-          <button class="reorder-btn" data-role="moveup" data-letter="${letter}" ${idx===0?"disabled":""} aria-label="mover treino ${letter} para cima">${ICONS.up}</button>
-          <button class="reorder-btn" data-role="movedown" data-letter="${letter}" ${idx===state.order.length-1?"disabled":""} aria-label="mover treino ${letter} para baixo">${ICONS.down}</button>
-        </div>
-        <div class="workout-chip" style="background:${color}">${letter}</div>
-        <input class="workout-title-input" data-role="wname" data-letter="${letter}" value="${escapeAttr(w.name)}" placeholder="Nome do treino" aria-label="Nome do treino ${letter}">
-        <span class="edit-pencil">${ICONS.pencil}</span>
-        ${state.order.length > 1 ? `<button class="icon-btn" data-role="delworkout" data-letter="${letter}" aria-label="remover treino ${letter}">${ICONS.close}</button>` : ""}
-      </div>
-      ${w.exercises.length > 0 ? `
-        <div class="ex-labels">
-          <span class="ex-name">EXERCÍCIO</span><span class="ex-sets">SÉRIES</span><span class="ex-reps">REPS</span><span class="ex-del"></span>
-        </div>
-        ${w.exercises.map(ex => `
-        <div class="exercise-row" data-exid="${ex.id}">
-          <input class="ex-name" data-role="exname" data-letter="${letter}" data-exid="${ex.id}" value="${escapeAttr(ex.name)}" placeholder="Ex: Supino reto" aria-label="Nome do exercício">
-          <input class="ex-sets" data-role="exsets" data-letter="${letter}" data-exid="${ex.id}" value="${escapeAttr(ex.sets)}" placeholder="4" inputmode="numeric" aria-label="Séries">
-          <input class="ex-reps" data-role="exreps" data-letter="${letter}" data-exid="${ex.id}" value="${escapeAttr(ex.reps)}" placeholder="12" inputmode="numeric" aria-label="Repetições">
-          <button class="ex-del" data-role="delex" data-letter="${letter}" data-exid="${ex.id}" aria-label="remover exercício">${ICONS.close}</button>
-        </div>`).join("")}
-      ` : `<div class="empty-ex">Nenhum exercício ainda — adicione o primeiro abaixo.</div>`}
-      <button class="add-exercise-btn" data-role="addex" data-letter="${letter}">${ICONS.plus} Adicionar exercício</button>
-    </div>`;
-  });
-  html += `<button class="add-workout-btn" id="addWorkoutBtn">${ICONS.plus} Adicionar novo treino ao ciclo</button>`;
-
-  // ----- history -----
-  html += `<p class="section-title" style="margin-top:24px;">Histórico</p>`;
-  html += `<div class="card">
-    <div class="legend">
-      ${state.order.map(l => `<div class="legend-item"><span class="legend-dot" style="background:${colorFor(l, state.order)}"></span>${l}</div>`).join("")}
-      <div class="legend-item"><span class="legend-dot" style="background:var(--dot-off)"></span>não treinou</div>
-    </div>
-    ${buildHeatmap()}
-  </div>`;
-
-  html += `<div class="footer-actions">
-    <button class="footer-btn" id="exportBtn">${ICONS.download} Exportar backup</button>
-    <button class="footer-btn" id="importBtn">${ICONS.upload} Importar backup</button>
-  </div>
-  <input type="file" id="importFile" accept="application/json">
-  <div class="hint">toque em um exercício ou dia do histórico para editar</div>`;
-
-  app.innerHTML = html;
-  attachHandlers();
-  renderSheet();
-}
-
-function buildHeatmap(){
-  const todayD = new Date(); todayD.setHours(0,0,0,0);
-  const totalWeeks = 18;
-  let start = new Date(todayD);
-  start.setDate(start.getDate() - (totalWeeks*7 - 1));
-  start.setDate(start.getDate() - start.getDay()); // volta até o domingo
-
-  const weeks = [];
-  let cursor = new Date(start);
-  while(true){
-    const week = [];
-    for(let i=0;i<7;i++){
-      week.push(new Date(cursor));
-      cursor.setDate(cursor.getDate()+1);
-    }
-    weeks.push(week);
-    if(cursor > todayD) break;
-  }
-
-  const monthsRow = weeks.map(week => {
-    const firstOfMonth = week.find(d => d.getDate() <= 7 && d <= todayD);
-    return firstOfMonth ? MONTH_NAMES[firstOfMonth.getMonth()] : "";
-  });
-
-  let html = `<div class="heat-months">${monthsRow.map(m => `<span>${m}</span>`).join("")}</div>`;
-  html += `<div class="heat-body">`;
-  html += `<div class="heat-weekday-labels"><span></span><span>seg</span><span></span><span>qua</span><span></span><span>sex</span><span></span></div>`;
-  html += `<div class="heat-grid">`;
-  weeks.forEach(week => {
-    html += `<div class="heat-col">`;
-    week.forEach(d => {
-      if(d > todayD){
-        html += `<div class="heat-cell empty"></div>`;
-        return;
-      }
-      const key = dateKeyFromDate(d);
-      const letter = sessionLetter(key);
-      const isToday = key === todayKey();
-      const style = letter ? `background:${colorFor(letter, state.order)}` : "";
-      let cls = "heat-cell" + (letter ? "" : " off") + (isToday ? " today" : "");
-      const label = `${WEEKDAY_FULL[d.getDay()]}, ${d.getDate()} de ${MONTH_NAMES_FULL[d.getMonth()]}${letter ? " — Treino " + letter : " — sem treino"}`;
-      html += `<button class="${cls}" style="${style}" data-role="heatday" data-key="${key}" aria-label="${escapeAttr(label)}"></button>`;
-    });
-    html += `</div>`;
-  });
-  html += `</div></div>`;
-  return html;
-}
-
-function escapeHtml(s){
-  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-}
-function escapeAttr(s){ return escapeHtml(s); }
-
-// ---------- bottom sheet: registro do dia ----------
-function openSheet(dateKey){
-  const existing = state.sessions[dateKey];
-  const letter = existing ? sessionLetter(dateKey) : (dateKey === todayKey() ? nextWorkoutLetter() : state.order[0]);
-  const existingLog = existing ? sessionLog(dateKey) : {};
-  sheetState = { dateKey, letter, log: JSON.parse(JSON.stringify(existingLog)) };
-  renderSheet();
-}
-function closeSheet(){
-  sheetState = null;
-  renderSheet();
-}
-async function saveSheet(){
-  const { dateKey, letter, log } = sheetState;
-  state.sessions[dateKey] = { letter, log };
-  if(navigator.vibrate) navigator.vibrate([10,40,10]);
-  sheetState = null;
-  render();
-  await persist();
-  showToast(dateKey === todayKey() ? `Treino ${letter} marcado como feito` : "Registro salvo");
-}
-async function removeSheetEntry(){
-  delete state.sessions[sheetState.dateKey];
-  sheetState = null;
-  render();
-  await persist();
-  showToast("Registro removido");
-}
-async function undoToday(){
-  delete state.sessions[todayKey()];
-  render();
-  await persist();
-  showToast("Desfeito");
-}
-
-function renderSheet(){
-  const root = document.getElementById("sheetRoot");
-  if(!sheetState){ root.innerHTML = ""; return; }
-  const { dateKey, letter, log } = sheetState;
-  const [y,m,dd] = dateKey.split("-").map(Number);
-  const d = new Date(y, m-1, dd);
-  const isToday = dateKey === todayKey();
-  const dateLabel = isToday ? "Hoje" : `${WEEKDAY_FULL[d.getDay()]}, ${dd} de ${MONTH_NAMES_FULL[m-1]}`;
-  const existing = !!state.sessions[dateKey];
-  const w = state.workouts[letter] || { exercises: [] };
-
-  let html = `<div class="sheet-backdrop" id="sheetBackdrop"></div>`;
-  html += `<div class="sheet" role="dialog" aria-label="Registrar treino">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <div class="sheet-date">${escapeHtml(dateLabel)}</div>
-      <button class="icon-btn" id="sheetClose" aria-label="fechar">${ICONS.close}</button>
-    </div>
-    <div class="sheet-chips">
-      ${state.order.map(l => `<button class="chip" data-role="sheetletter" data-letter="${l}" style="${l===letter ? `background:${colorFor(l,state.order)};color:#0a0a0a;border-color:transparent` : ""}">${l}</button>`).join("")}
-    </div>
-    ${w.exercises.length ? `<div class="sheet-exercises">${w.exercises.map(ex => {
-      const last = lastLoggedValue(ex.id, dateKey);
-      const cur = log[ex.id] || {};
-      return `<div class="sheet-ex-row">
-        <div class="sheet-ex-name">${escapeHtml(ex.name || "Exercício")}</div>
-        <div class="sheet-ex-inputs">
-          <input class="sheet-input" data-role="logweight" data-exid="${ex.id}" inputmode="decimal" placeholder="${last?.weight ? last.weight + " kg" : "peso (kg)"}" value="${escapeAttr(cur.weight || "")}" aria-label="Peso usado em ${escapeAttr(ex.name||"exercício")}">
-          <input class="sheet-input" data-role="logreps" data-exid="${ex.id}" inputmode="numeric" placeholder="${last?.reps || ex.reps || "reps"}" value="${escapeAttr(cur.reps || "")}" aria-label="Repetições feitas em ${escapeAttr(ex.name||"exercício")}">
-        </div>
-      </div>`;
-    }).join("")}</div>` : `<div class="sheet-empty">Esse treino ainda não tem exercícios cadastrados.</div>`}
-    <div class="sheet-actions">
-      <button class="cta-btn" id="sheetSave">Salvar treino</button>
-      ${existing ? `<button class="footer-btn danger" id="sheetRemove">${ICONS.trash} Remover registro deste dia</button>` : ""}
-    </div>
-  </div>`;
-  root.innerHTML = html;
-
-  document.getElementById("sheetBackdrop").addEventListener("click", closeSheet);
-  document.getElementById("sheetClose").addEventListener("click", closeSheet);
-  document.querySelectorAll('[data-role="sheetletter"]').forEach(b => {
-    b.addEventListener("click", () => { sheetState.letter = b.dataset.letter; renderSheet(); });
-  });
-  document.querySelectorAll('[data-role="logweight"],[data-role="logreps"]').forEach(inp => {
-    inp.addEventListener("input", () => {
-      const exid = inp.dataset.exid;
-      const field = inp.dataset.role === "logweight" ? "weight" : "reps";
-      sheetState.log[exid] = { ...sheetState.log[exid], [field]: inp.value };
-    });
-  });
-  document.getElementById("sheetSave").addEventListener("click", saveSheet);
-  const removeBtn = document.getElementById("sheetRemove");
-  if(removeBtn) removeBtn.addEventListener("click", removeSheetEntry);
-}
-
-// ---------- other actions ----------
-function attachHandlers(){
-  const markBtn = document.getElementById("markDoneBtn");
-  if(markBtn) markBtn.addEventListener("click", () => openSheet(todayKey()));
-
-  const editTodayBtn = document.getElementById("editTodayBtn");
-  if(editTodayBtn) editTodayBtn.addEventListener("click", () => openSheet(todayKey()));
-
-  const undoBtn = document.getElementById("undoTodayBtn");
-  if(undoBtn) undoBtn.addEventListener("click", undoToday);
-
-  const retryLoadBtn = document.getElementById("retryLoadBtn");
-  if(retryLoadBtn) retryLoadBtn.addEventListener("click", async () => {
-    showToast("Carregando novamente…");
-    await loadData();
-    render();
-  });
-
-  const updateBtn = document.getElementById("updateBtn");
-  if(updateBtn) updateBtn.addEventListener("click", () => {
-    if(updateAvailable && updateAvailable.waiting){
-      updateAvailable.waiting.postMessage("SKIP_WAITING");
-    }
-  });
-
-  document.querySelectorAll('[data-role="wname"]').forEach(el => {
-    el.addEventListener("change", async () => {
-      state.workouts[el.dataset.letter].name = el.value || `Treino ${el.dataset.letter}`;
-      await persist();
-    });
-    el.addEventListener("keydown", (ev) => {
-      if(ev.key === "Enter") el.blur();
-    });
-  });
-
-  document.querySelectorAll('[data-role="moveup"],[data-role="movedown"]').forEach(el => {
-    el.addEventListener("click", async () => {
-      const letter = el.dataset.letter;
-      const dir = el.dataset.role === "moveup" ? -1 : 1;
-      const idx = state.order.indexOf(letter);
-      const newIdx = idx + dir;
-      if(newIdx < 0 || newIdx >= state.order.length) return;
-      [state.order[idx], state.order[newIdx]] = [state.order[newIdx], state.order[idx]];
-      render();
-      await persist();
-    });
-  });
-
-  document.querySelectorAll('[data-role="delworkout"]').forEach(el => {
-    el.addEventListener("click", async () => {
-      const letter = el.dataset.letter;
-      if(!confirm(`Remover o Treino ${letter} do ciclo? Os dias já registrados no histórico permanecem.`)) return;
-      state.order = state.order.filter(l => l !== letter);
-      delete state.workouts[letter];
-      render();
-      await persist();
-    });
-  });
-
-  document.querySelectorAll('[data-role="exname"], [data-role="exsets"], [data-role="exreps"]').forEach(el => {
-    el.addEventListener("change", async () => {
-      const w = state.workouts[el.dataset.letter];
-      const ex = w.exercises.find(e => e.id === el.dataset.exid);
-      if(!ex) return;
-      if(el.dataset.role === "exname") ex.name = el.value;
-      if(el.dataset.role === "exsets") ex.sets = el.value;
-      if(el.dataset.role === "exreps") ex.reps = el.value;
-      await persist();
-    });
-  });
-
-  document.querySelectorAll('[data-role="delex"]').forEach(el => {
-    el.addEventListener("click", async () => {
-      const w = state.workouts[el.dataset.letter];
-      w.exercises = w.exercises.filter(e => e.id !== el.dataset.exid);
-      render();
-      await persist();
-    });
-  });
-
-  document.querySelectorAll('[data-role="addex"]').forEach(el => {
-    el.addEventListener("click", async () => {
-      const w = state.workouts[el.dataset.letter];
-      w.exercises.push({ id: newExId(), name: "", sets: "", reps: "" });
-      render();
-      await persist();
-      const inputs = document.querySelectorAll(`[data-letter="${el.dataset.letter}"][data-role="exname"]`);
-      const lastInput = inputs[inputs.length - 1];
-      if(lastInput) lastInput.focus();
-    });
-  });
-
-  const addWorkoutBtn = document.getElementById("addWorkoutBtn");
-  if(addWorkoutBtn) addWorkoutBtn.addEventListener("click", async () => {
-    const nextLetter = nextAvailableLetter();
-    if(!nextLetter){ showToast("Limite de treinos atingido"); return; }
-    state.order.push(nextLetter);
-    state.workouts[nextLetter] = { name: `Treino ${nextLetter}`, exercises: [] };
-    render();
-    await persist();
-  });
-
-  document.querySelectorAll('[data-role="heatday"]').forEach(el => {
-    el.addEventListener("click", () => openSheet(el.dataset.key));
-  });
-
-  document.getElementById("exportBtn").addEventListener("click", () => {
-    try{
-      const data = JSON.stringify(state, null, 2);
-      const blob = new Blob([data], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `meus-treinos-backup-${todayKey()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast("Backup exportado");
-    }catch(e){
-      showToast("Não foi possível exportar o backup");
-    }
-  });
-
-  document.getElementById("importBtn").addEventListener("click", () => {
-    document.getElementById("importFile").click();
-  });
-  document.getElementById("importFile").addEventListener("change", async (ev) => {
-    const file = ev.target.files[0];
-    if(!file) return;
-    try{
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if(!parsed.order || !parsed.workouts) throw new Error("formato inválido");
-      const nTreinos = parsed.order.length;
-      const nSessoes = Object.keys(parsed.sessions || {}).length;
-      const ok = confirm(`Este backup tem ${nTreinos} treino(s) e ${nSessoes} sessão(ões) registradas.\n\nIsso vai substituir TODOS os dados atuais do app. Continuar?`);
-      if(!ok){ ev.target.value = ""; return; }
-      state = parsed;
-      migrateSessions(state);
-      initExIdCounter();
-      render();
-      await persist();
-      showToast("Backup importado");
-    }catch(e){
-      showToast("Arquivo de backup inválido");
-    }
-    ev.target.value = "";
-  });
-}
-
-function nextAvailableLetter(){
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  for(const ch of alphabet){
-    if(!state.order.includes(ch)) return ch;
-  }
-  return null;
-}
-
-// ---------- init ----------
-(async function init(){
-  if(!storageAvailable()){
-    loadFailed = true;
-    render();
-    showToast("Armazenamento indisponível (modo privado?). Seus dados não serão salvos.");
-    return;
-  }
-  await loadData();
-  render();
-  if(loadFailed){
-    showToast("Seus dados salvos não puderam ser carregados agora");
-  }
-})();
-
-// ---------- service worker (offline support + atualização) ----------
-if("serviceWorker" in navigator){
-  window.addEventListener("load", async () => {
-    try{
-      const reg = await navigator.serviceWorker.register("sw.js");
-      if(reg.waiting && navigator.serviceWorker.controller){
-        updateAvailable = reg;
-        render();
-      }
-      reg.addEventListener("updatefound", () => {
-        const newWorker = reg.installing;
-        if(!newWorker) return;
-        newWorker.addEventListener("statechange", () => {
-          if(newWorker.state === "installed" && navigator.serviceWorker.controller){
-            updateAvailable = reg;
-            render();
-          }
-        });
-      });
-    }catch(e){}
-  });
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if(refreshing) return;
-    refreshing = true;
-    window.location.reload();
-  });
-}
-</script>
+<script src="app.js"></script>
 </body>
 </html>

@@ -8,9 +8,10 @@ depois de publicado, instala no iPhone e se comporta como um app nativo.
 
 ```
 meus-treinos/
-├── index.html      → o app em si
-├── manifest.json    → configuração do PWA
-├── sw.js             → service worker (uso offline)
+├── index.html      → estrutura/estilo do app
+├── app.js          → toda a lógica do app
+├── manifest.json   → configuração do PWA
+├── sw.js           → service worker (uso offline + atualização)
 ├── icons/
 │   ├── icon-192.png
 │   ├── icon-512.png
@@ -24,23 +25,57 @@ do app de vez em quando para não perder o histórico caso troque de aparelho.
 
 ## Novidades desta versão
 
-- **Registro de carga e reps**: ao marcar um treino como feito (ou tocar num
-  dia do histórico), abre uma folha com cada exercício para anotar peso e
-  repetições. O campo mostra o último valor registrado como referência.
-- **Histórico em heatmap**: o calendário virou um mapa de calor (estilo
-  GitHub), mais compacto e fácil de ler os padrões de frequência.
-- **Reordenar treinos** no ciclo com as setinhas ao lado de cada card.
-- **Ícones SVG** no lugar dos caracteres de texto (✎ ✕ ✓) para um visual
-  mais consistente entre aparelhos.
-- **Indicador de salvamento** renomeado para deixar claro que os dados ficam
-  só neste aparelho (não é sincronização na nuvem).
-- **Aviso de atualização do app**: quando uma nova versão for publicada no
-  GitHub Pages, aparece um banner para atualizar sem precisar desinstalar.
-- **Importar backup** agora mostra quantos treinos/sessões o arquivo tem
-  antes de sobrescrever os dados atuais.
-- Corrigido um bug em que o contador interno de exercícios reiniciava a
-  cada carregamento da página, podendo gerar exercícios com IDs
-  duplicados depois de várias edições.
+**Rodada 1**
+- Registro de carga e reps ao marcar um treino (ou editar um dia do
+  histórico), com o último valor usado como referência.
+- Histórico em heatmap estilo GitHub.
+- Reordenar treinos no ciclo com as setinhas.
+- Ícones SVG no lugar dos caracteres de texto (✎ ✕ ✓).
+- Indicador de salvamento renomeado ("salvo neste aparelho").
+- Aviso de atualização do app quando uma nova versão for publicada.
+- Importar backup mostra quantos treinos/sessões o arquivo tem.
+- Corrigido bug do contador de ID de exercício reiniciando a cada carregamento.
+
+**Rodada 2**
+- **Gráfico de progresso por exercício**: toque no ícone de gráfico ao lado
+  de um exercício para ver a evolução de carga ao longo do tempo.
+- **Dias de descanso**: dá pra adicionar "Descanso" como parte do ciclo,
+  junto com os treinos A/B/C.
+- **Lembrete diário**: ative um horário para o app te avisar (por
+  notificação, se permitida, e por um aviso dentro do app) que ainda não
+  treinou hoje. **Importante:** isso só funciona enquanto o app está aberto
+  ou quando você o reabre — o iPhone não permite alarmes em segundo plano
+  para apps instalados via Safari sem um servidor de notificações próprio
+  (Web Push exigiria backend). Se quiser lembrete garantido mesmo com o app
+  fechado, o caminho realista é usar o app de Lembretes/Calendário nativo
+  do iPhone em paralelo.
+- **Aviso de backup**: se passar 14 dias sem exportar, aparece um banner
+  sugerindo exportar (com atalho direto).
+- **Importar com escolha**: agora pergunta se você quer **mesclar** o
+  backup com os dados atuais (só adiciona sessões novas) ou **substituir**
+  tudo.
+- **Inputs de exercício redesenhados**: nome em linha própria, séries/reps
+  em campos maiores e mais fáceis de tocar.
+- **Animação de conclusão**: um pulso sutil no card ao salvar o treino do dia.
+- Mais `aria-label`s nos chips e campos da folha de registro.
+- Código dividido em `index.html` (estrutura) e `app.js` (lógica), para
+  ficar mais fácil de editar cada parte separadamente.
+
+### O que ficou de fora (e por quê)
+
+- **Sincronizar entre aparelhos de verdade** (ex: editar no iPhone e ver no
+  iPad na hora) não é possível só com HTML/JS estático — precisa de um
+  servidor/backend guardando os dados de cada usuário. O app continua
+  local por aparelho; a forma de levar dados de um pra outro é exportar e
+  importar o arquivo de backup (dá pra guardar esse arquivo no iCloud Drive
+  para facilitar).
+- **Reescrever o motor de renderização** (hoje ele redesenha a tela inteira
+  a cada ação, em vez de atualizar só o que mudou) não foi feito nesta
+  rodada: com a quantidade de dados de um app pessoal de treino isso não
+  chega a ser perceptível na prática, e mexer nisso tem risco real de
+  introduzir bugs sutis para um ganho que você provavelmente nem notaria.
+  Se um dia o app crescer muito (dezenas de exercícios por treino, anos de
+  histórico), vale revisitar.
 
 ## 1. Subir para o GitHub
 
