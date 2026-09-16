@@ -1,4 +1,4 @@
-const CACHE_NAME = "meus-treinos-v1";
+const CACHE_NAME = "meus-treinos-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -12,7 +12,8 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
+  // não chama skipWaiting() aqui: o novo SW fica "esperando" até o usuário
+  // confirmar a atualização pelo banner no app (evita trocar a versão embaixo dele sem avisar)
 });
 
 self.addEventListener("activate", (event) => {
@@ -22,6 +23,12 @@ self.addEventListener("activate", (event) => {
     )
   );
   self.clients.claim();
+});
+
+self.addEventListener("message", (event) => {
+  if(event.data === "SKIP_WAITING"){
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {

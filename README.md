@@ -22,6 +22,26 @@ Os dados (treinos, exercícios e histórico) ficam salvos no `localStorage` do
 navegador do seu iPhone — não há servidor. Use **"Exportar backup"** dentro
 do app de vez em quando para não perder o histórico caso troque de aparelho.
 
+## Novidades desta versão
+
+- **Registro de carga e reps**: ao marcar um treino como feito (ou tocar num
+  dia do histórico), abre uma folha com cada exercício para anotar peso e
+  repetições. O campo mostra o último valor registrado como referência.
+- **Histórico em heatmap**: o calendário virou um mapa de calor (estilo
+  GitHub), mais compacto e fácil de ler os padrões de frequência.
+- **Reordenar treinos** no ciclo com as setinhas ao lado de cada card.
+- **Ícones SVG** no lugar dos caracteres de texto (✎ ✕ ✓) para um visual
+  mais consistente entre aparelhos.
+- **Indicador de salvamento** renomeado para deixar claro que os dados ficam
+  só neste aparelho (não é sincronização na nuvem).
+- **Aviso de atualização do app**: quando uma nova versão for publicada no
+  GitHub Pages, aparece um banner para atualizar sem precisar desinstalar.
+- **Importar backup** agora mostra quantos treinos/sessões o arquivo tem
+  antes de sobrescrever os dados atuais.
+- Corrigido um bug em que o contador interno de exercícios reiniciava a
+  cada carregamento da página, podendo gerar exercícios com IDs
+  duplicados depois de várias edições.
+
 ## 1. Subir para o GitHub
 
 1. Entre em [github.com](https://github.com) (crie conta se ainda não tiver).
