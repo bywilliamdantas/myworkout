@@ -13,7 +13,6 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
 <script>
-  // aplica tema antes do CSS pintar (evita flash)
   (function(){
     try {
       const t = localStorage.getItem("gym-theme");
@@ -23,13 +22,9 @@
 </script>
 <style>
   :root{
-    /* escala de espaço (4/8) */
     --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
-
-    /* raio */
     --r-sm:10px; --r-md:14px; --r-lg:18px; --r-xl:24px; --r-2xl:28px;
 
-    /* dark (default) */
     --bg:#000;
     --surface:#0d0d0d;
     --surface-2:#161616;
@@ -68,11 +63,9 @@
     --shadow-sheet:0 -20px 60px rgba(0,0,0,0.6);
 
     --ease:cubic-bezier(.32,.72,0,1);
-
     color-scheme: dark;
   }
 
-  /* Light quando sistema pede E usuário não forçou dark */
   @media (prefers-color-scheme: light){
     :root:not([data-theme="dark"]){
       --bg:#f4f4f6;
@@ -83,23 +76,18 @@
       --card-bottom:#fafafb;
       --card-border:rgba(0,0,0,0.06);
       --divider:rgba(0,0,0,0.07);
-
       --text-primary:#0a0a0a;
       --text-secondary:#4a4a4a;
       --text-muted:#767676;
       --text-label:#6a6a6a;
-
       --dot-off:#e2e2e6;
       --dot-future:#d8d8dc;
-
       --shadow-card:0 12px 40px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
       --shadow-sheet:0 -20px 60px rgba(0,0,0,0.18);
-
       color-scheme: light;
     }
   }
 
-  /* Light forçado pelo usuário */
   :root[data-theme="light"]{
     --bg:#f4f4f6;
     --surface:#ffffff;
@@ -109,18 +97,14 @@
     --card-bottom:#fafafb;
     --card-border:rgba(0,0,0,0.06);
     --divider:rgba(0,0,0,0.07);
-
     --text-primary:#0a0a0a;
     --text-secondary:#4a4a4a;
     --text-muted:#767676;
     --text-label:#6a6a6a;
-
     --dot-off:#e2e2e6;
     --dot-future:#d8d8dc;
-
     --shadow-card:0 12px 40px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
     --shadow-sheet:0 -20px 60px rgba(0,0,0,0.18);
-
     color-scheme: light;
   }
 
@@ -146,7 +130,6 @@
     font-feature-settings:"tnum";
   }
 
-  /* ---------- sync row ---------- */
   .sync-row{
     display:flex; align-items:center; gap:6px;
     font-size:11px; color:var(--text-muted);
@@ -162,7 +145,6 @@
     font-size:11px; padding:0; margin-left:4px; -webkit-appearance:none;
   }
 
-  /* ---------- card ---------- */
   .card{
     background:linear-gradient(165deg,var(--card-top),var(--card-bottom) 70%);
     border:1px solid var(--card-border);
@@ -172,7 +154,6 @@
     margin-bottom:var(--s4);
   }
 
-  /* ---------- banners ---------- */
   .banners{ display:flex; flex-direction:column; gap:var(--s2); margin-bottom:var(--s4); }
   .banner{
     background:var(--danger-bg); border:1px solid var(--danger-border);
@@ -189,7 +170,6 @@
   @media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .banner.info{ color:#1a6ec4; } }
   :root[data-theme="light"] .banner.info{ color:#1a6ec4; }
 
-  /* ---------- hero ---------- */
   .eyebrow{
     font-size:12px; font-weight:700; letter-spacing:0.08em;
     color:var(--text-label); margin:0 0 var(--s4); text-transform:uppercase;
@@ -232,7 +212,6 @@
     background:none; border:none; padding:0; -webkit-appearance:none;
   }
 
-  /* ---------- stats ---------- */
   .stats-card{
     display:flex; gap:0; padding:0;
     overflow:hidden;
@@ -253,7 +232,6 @@
     letter-spacing:0.03em; text-transform:uppercase; font-weight:600;
   }
 
-  /* ---------- section headers ---------- */
   .section-title{
     font-size:12px; font-weight:700; letter-spacing:0.08em;
     color:var(--text-label); text-transform:uppercase;
@@ -271,7 +249,6 @@
   }
   .toggle-visibility-btn:active{ background:var(--surface-2); }
 
-  /* ---------- workout cards ---------- */
   .workout-card{ padding:var(--s4); }
   .workout-head{
     display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3);
@@ -332,7 +309,6 @@
   }
   .progress-btn:disabled{ opacity:0.25; }
 
-  /* tipo (força / cardio) */
   .ex-type-toggle{
     display:flex; gap:6px; margin-bottom:10px;
   }
@@ -368,7 +344,6 @@
     padding:14px 4px 2px;
   }
 
-  /* ---------- empty states ---------- */
   .empty-state{
     text-align:center; padding:var(--s5) var(--s3);
     border:1px dashed var(--card-border); border-radius:var(--r-md);
@@ -408,7 +383,6 @@
   }
   .add-workout-btn:active{ background:var(--surface-3); }
 
-  /* ---------- calendário ---------- */
   .legend{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:var(--s5); }
   .legend-item{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-label); }
   .legend-dot{ width:9px;height:9px;border-radius:50%; }
@@ -439,7 +413,6 @@
   .cal-cell.today{ box-shadow:0 0 0 1.6px var(--text-primary); }
   .cal-cell:active:not(.empty):not(.future){ transform:scale(0.9); }
 
-  /* ---------- toggle iOS ---------- */
   .switch{
     position:relative; display:inline-block;
     width:48px; height:28px; flex-shrink:0;
@@ -460,7 +433,6 @@
   .switch input:checked + .slider{ background:var(--accent); }
   .switch input:checked + .slider::before{ transform:translateX(20px); }
 
-  /* ---------- footer ---------- */
   .footer-actions{ display:flex; gap:10px; margin-top:var(--s1); }
   .footer-btn{
     flex:1; background:var(--surface-2);
@@ -474,6 +446,8 @@
     color:var(--danger); border-color:var(--danger-border); background:var(--danger-bg);
     flex:none; padding:11px 14px;
   }
+  .footer-btn.loading{ opacity:0.6; pointer-events:none; }
+  .footer-btn.success{ color:var(--ok); border-color:var(--ok-border); background:var(--ok-bg); }
   input[type=file]{ display:none; }
 
   .toast{
@@ -491,7 +465,6 @@
   .hint{ text-align:center; font-size:11px; color:var(--text-muted); margin-top:var(--s4); }
   .loading{ text-align:center; color:var(--text-muted); font-size:13px; padding:60px 0; }
 
-  /* ---------- bottom sheet ---------- */
   .sheet-backdrop{
     position:fixed; inset:0; background:rgba(0,0,0,0.55);
     z-index:90; animation:fadeIn .18s ease;
@@ -536,6 +509,7 @@
   }
   .sheet-ex-name{
     font-size:13.5px; font-weight:700; margin-bottom:4px;
+    display:flex; align-items:center; gap:6px;
   }
   .sheet-ex-last{
     font-size:11px; color:var(--text-muted); margin-bottom:10px;
@@ -598,7 +572,6 @@
   .sheet-empty{ text-align:center; font-size:12.5px; color:var(--text-muted); padding:18px 10px; margin-bottom:var(--s3); }
   .sheet-actions{ display:flex; flex-direction:column; gap:10px; }
 
-  /* ---------- cronômetro do sheet ---------- */
   .sheet-clock{
     display:flex; align-items:center; justify-content:center; gap:8px;
     padding:10px 14px; margin:-4px 0 16px;
@@ -618,7 +591,6 @@
     text-transform:uppercase; letter-spacing:0.06em; font-weight:600;
   }
 
-  /* ---------- rest timer ---------- */
   .rest-timer{
     position:fixed; left:0; right:0; bottom:0; z-index:95;
     max-width:430px; margin:0 auto;
@@ -651,7 +623,6 @@
   }
   .rest-btn.primary{ background:var(--accent); color:var(--accent-on); border-color:transparent; }
 
-  /* ---------- progress sheet ---------- */
   .progress-list{ display:flex; flex-direction:column; gap:2px; margin-top:var(--s4); max-height:220px; overflow-y:auto; }
   .progress-row{
     display:flex; justify-content:space-between; gap:8px;
@@ -661,7 +632,6 @@
   .progress-row span:first-child{ color:var(--text-muted); width:44px; flex-shrink:0; }
   .chart-wrap{ margin:0 -4px; }
 
-  /* ---------- lembretes / preferências ---------- */
   .reminder-row{ display:flex; align-items:center; justify-content:space-between; font-size:13.5px; gap:12px; }
   .reminder-time-row{
     display:flex; align-items:center; justify-content:space-between;
@@ -674,7 +644,6 @@
     -webkit-appearance:none;
   }
 
-  /* ---------- seletor de tema ---------- */
   .theme-selector{
     display:flex; gap:6px; background:var(--surface-3);
     border:1px solid var(--card-border);
@@ -694,7 +663,6 @@
     box-shadow:0 1px 3px rgba(0,0,0,0.15);
   }
 
-  /* ---------- helpers ---------- */
   .hidden{ display:none !important; }
   .row-2{ display:flex; gap:10px; }
   .row-2 > *{ flex:1; }

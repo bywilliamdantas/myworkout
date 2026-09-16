@@ -1,4 +1,4 @@
-const CACHE_NAME = "meus-treinos-v4";
+const CACHE_NAME = "meus-treinos-v5";
 const ASSETS = [
   "./",
   "./index.html",
@@ -28,13 +28,14 @@ self.addEventListener("message", (event) => {
   if(event.data === "SKIP_WAITING"){
     self.skipWaiting();
   }
+  if(event.data === "CHECK_UPDATE"){
+    self.registration.update();
+  }
 });
 
-// stale-while-revalidate: responde do cache imediatamente, atualiza em background
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
-  // não cacheia requests cross-origin (ex: analytics futuro)
   if(url.origin !== location.origin) return;
 
   event.respondWith(

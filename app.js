@@ -27,10 +27,10 @@ const ICONS = {
   eyeOff: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.6 21.6 0 0 1-3.22 4.44M1 1l22 22"/><path d="M9.53 9.53A3.5 3.5 0 0 0 12 15.5a3.5 3.5 0 0 0 2.47-1.03"/></svg>`,
   dumbbell: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M3 9v6M21 9v6M1 10.5v3M23 10.5v3"/></svg>`,
   timer: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>`,
-  cardio: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>`
+  cardio: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>`,
+  refresh: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>`
 };
 
-// ---------- utils ----------
 function pad(n){ return String(n).padStart(2,"0"); }
 function dateKeyFromDate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function todayKey(){ return dateKeyFromDate(new Date()); }
@@ -79,7 +79,6 @@ function fmtClock(totalSec){
 }
 function isCardio(ex){ return ex && ex.type === "cardio"; }
 
-// ---------- theme ----------
 function getThemePref(){
   try {
     const t = localStorage.getItem(THEME_KEY);
@@ -96,7 +95,6 @@ function applyTheme(pref){
       document.documentElement.dataset.theme = pref;
       localStorage.setItem(THEME_KEY, pref);
     }
-    // atualiza meta theme-color
     const meta = document.querySelector('meta[name="theme-color"]');
     if(meta){
       const dark = pref === "dark" || (pref === "auto" && !window.matchMedia("(prefers-color-scheme: light)").matches);
@@ -105,7 +103,6 @@ function applyTheme(pref){
   } catch(e){}
 }
 
-// ---------- state ----------
 let state = {
   order: ["A","B","C"],
   workouts: {
@@ -129,6 +126,7 @@ let exIdCounter = 1;
 let restCounter = 1;
 let overlay = null;
 let updateAvailable = null;
+let swRegistration = null;
 let historyMonth = new Date(); historyMonth.setDate(1); historyMonth.setHours(0,0,0,0);
 let restTimerInterval = null;
 let sheetClockInterval = null;
@@ -155,7 +153,6 @@ function initRestCounter(){
   restCounter = max + 1;
 }
 
-// ---------- migrations ----------
 function migrateSessionEntry(entry){
   if(!entry) return null;
   if(typeof entry === "string") return { letter: entry, log: {} };
@@ -163,7 +160,6 @@ function migrateSessionEntry(entry){
   Object.keys(entry.log).forEach(exId => {
     const v = entry.log[exId];
     if(v && !Array.isArray(v)) {
-      // formato antigo: { weight, reps }
       const weight = v.weight;
       const reps = v.reps;
       const hasAny = (weight !== "" && weight != null) || (reps !== "" && reps != null);
@@ -192,7 +188,6 @@ function migrateSettings(s){
   if(s.settings.weekStartsMonday === undefined) s.settings.weekStartsMonday = false;
   if(s.settings.restTimerActive === undefined) s.settings.restTimerActive = null;
 }
-// garante que exercícios antigos ganhem "type"
 function migrateWorkouts(w){
   if(!w) return;
   Object.values(w.workouts || {}).forEach(wk => {
@@ -202,7 +197,6 @@ function migrateWorkouts(w){
   });
 }
 
-// ---------- storage ----------
 function storageAvailable(){
   try{
     const testKey = "__storage_test__";
@@ -278,7 +272,6 @@ function showToast(msg){
   toastTimer = setTimeout(() => t.classList.remove("show"), 2400);
 }
 
-// ---------- colors / labels ----------
 function colorFor(key, order){
   if(state.workouts[key]?.isRest) return REST_COLOR;
   const idx = order.indexOf(key);
@@ -293,7 +286,6 @@ function badgeContent(key){
   return state.workouts[key]?.isRest ? ICONS.moon : key;
 }
 
-// ---------- derived ----------
 function sessionLetter(key){
   const e = state.sessions[key];
   if(!e) return null;
@@ -346,7 +338,6 @@ function sessionsThisWeek(){
   return c;
 }
 
-// busca o exercício em qualquer workout
 function findExercise(exId){
   for(const w of Object.values(state.workouts)){
     const ex = (w.exercises || []).find(e => e.id === exId);
@@ -414,7 +405,6 @@ function restForExercise(exId){
   return state.settings.restDuration || 90;
 }
 
-// ---------- render ----------
 function render(){
   const app = document.getElementById("app");
   const next = nextWorkoutLetter();
@@ -447,7 +437,6 @@ function render(){
   const todaySession = state.sessions[todayKey()];
   const todayDuration = sessionDuration(todaySession);
 
-  // ----- hero -----
   html += `<div class="card" id="heroCard">
     <p class="eyebrow">${doneToday ? "Treino de hoje" : "Próximo"} · ${weekdayLabel}</p>
     <div class="hero-top">
@@ -469,14 +458,12 @@ function render(){
     }
   </div>`;
 
-  // ----- stats -----
   html += `<div class="card stats-card">
     <div class="stat streak"><div class="stat-num" data-count="${streak}">0</div><div class="stat-label">dias seguidos</div></div>
     <div class="stat"><div class="stat-num" data-count="${thisWeek}">0</div><div class="stat-label">essa semana</div></div>
     <div class="stat"><div class="stat-num" data-count="${total}">0</div><div class="stat-label">total geral</div></div>
   </div>`;
 
-  // ----- workouts -----
   html += `<div class="section-title-row">
     <p class="section-title" style="margin:0;">Meus treinos</p>
     <button class="toggle-visibility-btn" id="toggleWorkoutsBtn" aria-label="${state.settings.workoutsCollapsed ? "mostrar treinos" : "ocultar treinos"}">
@@ -485,7 +472,7 @@ function render(){
   </div>`;
 
   if(state.settings.workoutsCollapsed){
-    html += `<div class="card collapsed-note"><p>Seus treinos estão ocultos. Toque em "Mostrar" para editar.</p></div>`;
+    html += `<div class="card collapsed-note" style="text-align:center;color:var(--text-muted);font-size:12.5px;padding:22px 16px;"><p style="margin:0;line-height:1.5;">Seus treinos estão ocultos.</p></div>`;
   } else {
     state.order.forEach((key, idx) => {
       const w = state.workouts[key];
@@ -544,7 +531,6 @@ function render(){
     </div>`;
   }
 
-  // ----- history -----
   html += `<p class="section-title" style="margin-top:24px;">Histórico</p>`;
   const legendWorkouts = state.order.filter(k => !state.workouts[k]?.isRest);
   const hasRest = state.order.some(k => state.workouts[k]?.isRest);
@@ -557,7 +543,6 @@ function render(){
     ${buildMonthCalendar(historyMonth)}
   </div>`;
 
-  // ----- reminder -----
   const r = state.settings.reminder;
   html += `<p class="section-title" style="margin-top:24px;">Lembretes</p>
   <div class="card">
@@ -574,7 +559,6 @@ function render(){
     </div>
   </div>`;
 
-  // ----- preferences -----
   const themePref = getThemePref();
   html += `<p class="section-title" style="margin-top:24px;">Preferências</p>
   <div class="card">
@@ -601,6 +585,16 @@ function render(){
         <span class="slider"></span>
       </span>
     </div>
+    <div class="reminder-row" style="margin-top:14px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <span>Versão do app</span>
+        <span id="appVersionText" style="font-size:11px;color:var(--text-muted);"></span>
+      </div>
+      <button class="footer-btn" id="checkUpdateBtn" style="flex:none;padding:9px 14px;">
+        <span id="checkUpdateIcon">${ICONS.refresh}</span>
+        <span id="checkUpdateLabel">Verificar</span>
+      </button>
+    </div>
   </div>`;
 
   html += `<div class="footer-actions">
@@ -616,6 +610,7 @@ function render(){
   runCountUp();
   renderOverlay();
   renderRestTimer();
+  renderAppVersion();
 }
 
 function runCountUp(){
@@ -639,7 +634,6 @@ function runCountUp(){
   });
 }
 
-// ---------- calendar ----------
 function buildMonthCalendar(monthDate){
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();
@@ -687,7 +681,6 @@ function buildMonthCalendar(monthDate){
   `;
 }
 
-// ---------- overlay ----------
 function openDaySheet(dateKey){
   const existing = state.sessions[dateKey];
   const letter = existing ? sessionLetter(dateKey) : (dateKey === todayKey() ? nextWorkoutLetter() : state.order[0]);
@@ -729,7 +722,6 @@ function renderOverlay(){
   if(overlay.type === "confirm") return renderConfirmOverlay(root);
 }
 
-// ---------- day sheet ----------
 function ensureSetsForExercise(log, exId, defaultSets){
   if(!Array.isArray(log[exId])){
     const n = Math.max(1, parseInt(defaultSets, 10) || 1);
@@ -741,7 +733,6 @@ function ensureCardioSets(log, exId){
   if(!Array.isArray(log[exId]) || log[exId].length === 0){
     log[exId] = [{ minutes: null, done: false }];
   }
-  // garante campos
   log[exId].forEach(s => {
     if(!("minutes" in s)) s.minutes = null;
     if(!("done" in s)) s.done = false;
@@ -813,7 +804,6 @@ function renderDayOverlay(root){
     b.addEventListener("click", () => { haptic(6); overlay.letter = b.dataset.letter; renderOverlay(); });
   });
 
-  // step buttons (peso/reps/min)
   root.querySelectorAll(".step-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       haptic(6);
@@ -866,9 +856,14 @@ function renderDayOverlay(root){
     btn.addEventListener("click", () => {
       haptic(6);
       const exid = btn.dataset.exid;
+      const ex = findExercise(exid);
       const sets = overlay.log[exid] || [];
       const last = sets[sets.length - 1] || {};
-      sets.push({ weight: last.weight ?? null, reps: last.reps ?? null, done: false });
+      if(isCardio(ex)){
+        sets.push({ minutes: last.minutes ?? null, done: false });
+      } else {
+        sets.push({ weight: last.weight ?? null, reps: last.reps ?? null, done: false });
+      }
       overlay.log[exid] = sets;
       renderOverlay();
     });
@@ -978,7 +973,6 @@ function enableSheetDrag(sheetEl, handleEl){
 
 async function saveDaySheet(){
   const { dateKey, letter, log, startedAt } = overlay;
-  // limpa séries vazias (peso/reps/min nulos e não done)
   Object.keys(log).forEach(exId => {
     log[exId] = (log[exId] || []).filter(s => {
       if(s.minutes != null || s.weight != null || s.reps != null) return true;
@@ -1023,7 +1017,6 @@ async function undoToday(){
   showToast("Desfeito");
 }
 
-// ---------- rest timer ----------
 function startRestTimer(exId){
   const duration = exId ? restForExercise(exId) : (state.settings.restDuration || 90);
   const endsAt = Date.now() + duration * 1000;
@@ -1096,10 +1089,9 @@ function renderRestTimer(){
   }
 }
 
-// ---------- progress sheet ----------
 function buildLineChart(hist, unit){
   const w = 300, h = 140, padL = 34, padR = 14, padT = 14, padB = 24;
-  const validPts = hist.filter(p => p.weight != null && !isNaN(p.weight) || p.minutes != null && !isNaN(p.minutes));
+  const validPts = hist.filter(p => (p.weight != null && !isNaN(p.weight)) || (p.minutes != null && !isNaN(p.minutes)));
   const validValues = validPts.map(p => p.weight != null ? p.weight : p.minutes);
   if(validValues.length === 0) return "";
   let min = Math.min(...validValues), max = Math.max(...validValues);
@@ -1159,7 +1151,6 @@ function renderProgressOverlay(root){
   document.getElementById("sheetClose").addEventListener("click", closeOverlay);
 }
 
-// ---------- confirm ----------
 function renderConfirmOverlay(root){
   const { msg, onYes } = overlay;
   root.innerHTML = `<div class="sheet-backdrop" id="sheetBackdrop"></div>
@@ -1184,7 +1175,6 @@ function renderConfirmOverlay(root){
   });
 }
 
-// ---------- import choice ----------
 function renderImportChoiceOverlay(root){
   const { parsed } = overlay;
   const nTreinos = (parsed.order || []).length;
@@ -1237,7 +1227,6 @@ async function replaceImportData(parsed){
   showToast("Backup importado");
 }
 
-// ---------- backup ----------
 async function exportBackup(){
   try{
     const data = JSON.stringify(state, null, 2);
@@ -1301,7 +1290,6 @@ function exportCsv(){
   }
 }
 
-// ---------- reminder ----------
 function checkReminder(){
   const r = state.settings.reminder;
   if(!r || !r.enabled) return;
@@ -1320,7 +1308,90 @@ function checkReminder(){
   showToast(msg);
 }
 
-// ---------- handlers ----------
+// ---------- atualização manual ----------
+function setUpdateButtonState(state){
+  const btn = document.getElementById("checkUpdateBtn");
+  const label = document.getElementById("checkUpdateLabel");
+  const icon = document.getElementById("checkUpdateIcon");
+  if(!btn || !label || !icon) return;
+  btn.classList.remove("loading", "success");
+  if(state === "idle"){
+    label.textContent = "Verificar";
+    icon.innerHTML = ICONS.refresh;
+  } else if(state === "loading"){
+    label.textContent = "Verificando…";
+    icon.innerHTML = "";
+    btn.classList.add("loading");
+  } else if(state === "success"){
+    label.textContent = "Atualizado";
+    icon.innerHTML = ICONS.checkSm;
+    btn.classList.add("success");
+    setTimeout(() => setUpdateButtonState("idle"), 1800);
+  } else if(state === "available"){
+    label.textContent = "Atualizar";
+    icon.innerHTML = ICONS.refresh;
+    btn.classList.add("success");
+  }
+}
+
+async function checkForUpdate(){
+  if(!("serviceWorker" in navigator)){
+    showToast("Atualização não suportada neste navegador");
+    return;
+  }
+  if(!swRegistration){
+    showToast("Serviço ainda iniciando — tente em instantes");
+    return;
+  }
+
+  setUpdateButtonState("loading");
+  haptic(6);
+
+  try {
+    if(swRegistration.waiting){
+      setUpdateButtonState("available");
+      swRegistration.waiting.postMessage("SKIP_WAITING");
+      return;
+    }
+
+    await swRegistration.update();
+    await new Promise(r => setTimeout(r, 1200));
+
+    if(swRegistration.waiting){
+      setUpdateButtonState("available");
+      swRegistration.waiting.postMessage("SKIP_WAITING");
+    } else if(swRegistration.installing){
+      const installing = swRegistration.installing;
+      installing.addEventListener("statechange", () => {
+        if(installing.state === "installed"){
+          setUpdateButtonState("available");
+          if(swRegistration.waiting) swRegistration.waiting.postMessage("SKIP_WAITING");
+        }
+      });
+    } else {
+      setUpdateButtonState("success");
+      showToast("Você já está na versão mais recente");
+      haptic([10, 30, 10]);
+    }
+  } catch(e){
+    console.error("[update]", e);
+    setUpdateButtonState("idle");
+    showToast("Não foi possível verificar agora");
+  }
+}
+
+function renderAppVersion(){
+  const el = document.getElementById("appVersionText");
+  if(!el) return;
+  if("caches" in window){
+    caches.keys().then(keys => {
+      const own = keys.find(k => k.startsWith("meus-treinos-"));
+      const v = own ? own.replace("meus-treinos-", "") : "—";
+      el.textContent = `cache ${v}`;
+    }).catch(() => { el.textContent = ""; });
+  }
+}
+
 function attachHandlers(){
   const $ = (id) => document.getElementById(id);
 
@@ -1392,7 +1463,6 @@ function attachHandlers(){
     });
   });
 
-  // tipo (força/cardio)
   document.querySelectorAll('[data-role="extype"]').forEach(el => {
     el.addEventListener("click", async () => {
       haptic(6);
@@ -1503,12 +1573,10 @@ function attachHandlers(){
     await persist();
   });
 
-  // tema
   document.querySelectorAll('[data-role="settheme"]').forEach(el => {
     el.addEventListener("click", () => {
       haptic(6);
-      const pref = el.dataset.theme;
-      applyTheme(pref);
+      applyTheme(el.dataset.theme);
       render();
     });
   });
@@ -1531,6 +1599,9 @@ function attachHandlers(){
     render();
     await persist();
   });
+
+  const checkUpdateBtn = $("checkUpdateBtn");
+  if(checkUpdateBtn) checkUpdateBtn.addEventListener("click", checkForUpdate);
 
   const exportBtn = $("exportBtn");
   if(exportBtn) exportBtn.addEventListener("click", exportBackup);
@@ -1566,9 +1637,7 @@ function nextAvailableLetter(){
   return null;
 }
 
-// ---------- init ----------
 (async function init(){
-  // aplica tema salvo (ou auto)
   applyTheme(getThemePref());
 
   if(!storageAvailable()){
@@ -1599,20 +1668,20 @@ function nextAvailableLetter(){
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e){}
   });
 
-  // reage a mudanças do tema do sistema quando em "auto"
   if(window.matchMedia){
     const mq = window.matchMedia("(prefers-color-scheme: light)");
-    mq.addEventListener?.("change", () => {
+    if(mq.addEventListener) mq.addEventListener("change", () => {
       if(getThemePref() === "auto") applyTheme("auto");
     });
   }
 })();
 
-// ---------- service worker ----------
 if("serviceWorker" in navigator){
   window.addEventListener("load", async () => {
     try{
       const reg = await navigator.serviceWorker.register("sw.js");
+      swRegistration = reg;
+
       if(reg.waiting && navigator.serviceWorker.controller){
         updateAvailable = reg;
         render();
@@ -1627,6 +1696,12 @@ if("serviceWorker" in navigator){
           }
         });
       });
+
+      const btn = document.getElementById("checkUpdateBtn");
+      if(btn && !btn.dataset.bound){
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", checkForUpdate);
+      }
     }catch(e){}
   });
   let refreshing = false;
