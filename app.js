@@ -2,7 +2,6 @@ const STORAGE_KEY = "gym-data";
 const PALETTE = ["#ff5a1f", "#3d9dff", "#30d158", "#ffd60a", "#bf5af2", "#64d2ff"];
 const REST_COLOR = "#5b5b5b";
 const WEEKDAY_FULL = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
-const MONTH_NAMES = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
 const MONTH_NAMES_FULL = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 
 const ICONS = {
@@ -17,7 +16,9 @@ const ICONS = {
   trash: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg>`,
   chart: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l3-4 3 3 4-6"/></svg>`,
   moon: `<svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>`,
-  moonSmall: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>`
+  moonSmall: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>`,
+  left: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`,
+  right: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`
 };
 
 function pad(n){ return String(n).padStart(2,"0"); }
@@ -56,6 +57,7 @@ let exIdCounter = 1;
 let restCounter = 1;
 let overlay = null;         // { type:'day'|'progress'|'importChoice', ... }
 let updateAvailable = null; // service worker registration with a waiting worker
+let historyMonth = new Date(); historyMonth.setDate(1); historyMonth.setHours(0,0,0,0);
 
 function newExId(){ return "ex" + (exIdCounter++); }
 function newRestKey(){ return "REST" + (restCounter++); }
@@ -369,7 +371,7 @@ function render(){
       ${hasRest ? `<div class="legend-item"><span class="legend-dot" style="background:${REST_COLOR}"></span>descanso</div>` : ""}
       <div class="legend-item"><span class="legend-dot" style="background:var(--dot-off)"></span>não treinou</div>
     </div>
-    ${buildHeatmap()}
+    ${buildMonthCalendar(historyMonth)}
   </div>`;
 
   // ----- lembretes -----
@@ -399,53 +401,51 @@ function render(){
   renderOverlay();
 }
 
-function buildHeatmap(){
+function buildMonthCalendar(monthDate){
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startWeekday = first.getDay();
   const todayD = new Date(); todayD.setHours(0,0,0,0);
-  const totalWeeks = 18;
-  let start = new Date(todayD);
-  start.setDate(start.getDate() - (totalWeeks*7 - 1));
-  start.setDate(start.getDate() - start.getDay());
+  const isCurrentMonth = (year === todayD.getFullYear() && month === todayD.getMonth());
 
-  const weeks = [];
-  let cursor = new Date(start);
-  while(true){
-    const week = [];
-    for(let i=0;i<7;i++){
-      week.push(new Date(cursor));
-      cursor.setDate(cursor.getDate()+1);
+  let cells = "";
+  for(let i = 0; i < startWeekday; i++){
+    cells += `<div class="cal-cell empty"></div>`;
+  }
+  for(let day = 1; day <= daysInMonth; day++){
+    const d = new Date(year, month, day);
+    const key = dateKeyFromDate(d);
+    const letter = sessionLetter(key);
+    const isToday = key === todayKey();
+    const isFuture = d > todayD;
+    const style = letter ? `background:${colorFor(letter, state.order)};color:${state.workouts[letter]?.isRest ? "#f5f5f5" : "#0a0a0a"}` : "";
+    const cls = "cal-cell" + (letter ? " filled" : "") + (isToday ? " today" : "") + (isFuture ? " future" : "");
+    const label = `${day} de ${MONTH_NAMES_FULL[month]}${letter ? " — " + workoutLabel(letter) : (isFuture ? "" : " — sem treino")}`;
+    if(isFuture){
+      cells += `<div class="${cls}" aria-label="${escapeAttr(label)}"><span>${day}</span></div>`;
+    } else {
+      cells += `<button class="${cls}" style="${style}" data-role="calday" data-key="${key}" aria-label="${escapeAttr(label)}"><span>${day}</span></button>`;
     }
-    weeks.push(week);
-    if(cursor > todayD) break;
+  }
+  const totalCells = startWeekday + daysInMonth;
+  const trailing = (7 - (totalCells % 7)) % 7;
+  for(let i = 0; i < trailing; i++){
+    cells += `<div class="cal-cell empty"></div>`;
   }
 
-  const monthsRow = weeks.map(week => {
-    const firstOfMonth = week.find(d => d.getDate() <= 7 && d <= todayD);
-    return firstOfMonth ? MONTH_NAMES[firstOfMonth.getMonth()] : "";
-  });
+  const monthLabel = MONTH_NAMES_FULL[month].charAt(0).toUpperCase() + MONTH_NAMES_FULL[month].slice(1) + " de " + year;
 
-  let html = `<div class="heat-months">${monthsRow.map(m => `<span>${m}</span>`).join("")}</div>`;
-  html += `<div class="heat-body">`;
-  html += `<div class="heat-weekday-labels"><span></span><span>seg</span><span></span><span>qua</span><span></span><span>sex</span><span></span></div>`;
-  html += `<div class="heat-grid">`;
-  weeks.forEach(week => {
-    html += `<div class="heat-col">`;
-    week.forEach(d => {
-      if(d > todayD){
-        html += `<div class="heat-cell empty"></div>`;
-        return;
-      }
-      const key = dateKeyFromDate(d);
-      const letter = sessionLetter(key);
-      const isToday = key === todayKey();
-      const style = letter ? `background:${colorFor(letter, state.order)}` : "";
-      let cls = "heat-cell" + (letter ? "" : " off") + (isToday ? " today" : "");
-      const label = `${WEEKDAY_FULL[d.getDay()]}, ${d.getDate()} de ${MONTH_NAMES_FULL[d.getMonth()]}${letter ? " — " + workoutLabel(letter) : " — sem treino"}`;
-      html += `<button class="${cls}" style="${style}" data-role="heatday" data-key="${key}" aria-label="${escapeAttr(label)}"></button>`;
-    });
-    html += `</div>`;
-  });
-  html += `</div></div>`;
-  return html;
+  return `
+    <div class="cal-header">
+      <button class="cal-nav" id="calPrevBtn" aria-label="mês anterior">${ICONS.left}</button>
+      <div class="cal-month-label">${monthLabel}</div>
+      <button class="cal-nav" id="calNextBtn" aria-label="próximo mês" ${isCurrentMonth ? "disabled" : ""}>${ICONS.right}</button>
+    </div>
+    <div class="cal-weekdays"><span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div>
+    <div class="cal-grid">${cells}</div>
+  `;
 }
 
 function escapeHtml(s){
@@ -832,8 +832,21 @@ function attachHandlers(){
     await persist();
   });
 
-  document.querySelectorAll('[data-role="heatday"]').forEach(el => {
+  document.querySelectorAll('[data-role="calday"]').forEach(el => {
     el.addEventListener("click", () => openDaySheet(el.dataset.key));
+  });
+  const calPrevBtn = document.getElementById("calPrevBtn");
+  if(calPrevBtn) calPrevBtn.addEventListener("click", () => {
+    historyMonth.setMonth(historyMonth.getMonth() - 1);
+    render();
+  });
+  const calNextBtn = document.getElementById("calNextBtn");
+  if(calNextBtn) calNextBtn.addEventListener("click", () => {
+    const todayD = new Date();
+    const isCurrent = historyMonth.getFullYear() === todayD.getFullYear() && historyMonth.getMonth() === todayD.getMonth();
+    if(isCurrent) return;
+    historyMonth.setMonth(historyMonth.getMonth() + 1);
+    render();
   });
 
   const reminderToggle = document.getElementById("reminderToggle");
