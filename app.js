@@ -18,7 +18,9 @@ const ICONS = {
   moon: `<svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>`,
   moonSmall: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>`,
   left: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`,
-  right: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`
+  right: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`,
+  eye: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  eyeOff: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.6 21.6 0 0 1-3.22 4.44M1 1l22 22"/><path d="M9.53 9.53A3.5 3.5 0 0 0 12 15.5a3.5 3.5 0 0 0 2.47-1.03"/></svg>`
 };
 
 function pad(n){ return String(n).padStart(2,"0"); }
@@ -48,7 +50,8 @@ let state = {
   sessions: {},  // { "2026-09-11": { letter:"A", log: { exId: {weight,reps} } } }
   settings: {
     reminder: { enabled: false, time: "18:00", lastNotifiedDate: null },
-    lastBackupAt: null
+    lastBackupAt: null,
+    workoutsCollapsed: false
   }
 };
 let loadFailed = false;
@@ -98,6 +101,7 @@ function migrateSettings(s){
   if(!s.settings.reminder.time) s.settings.reminder.time = "18:00";
   if(s.settings.reminder.lastNotifiedDate === undefined) s.settings.reminder.lastNotifiedDate = null;
   if(s.settings.lastBackupAt === undefined) s.settings.lastBackupAt = null;
+  if(s.settings.workoutsCollapsed === undefined) s.settings.workoutsCollapsed = false;
 }
 
 function sessionLetter(key){
@@ -321,7 +325,15 @@ function render(){
   </div>`;
 
   // ----- workouts management -----
-  html += `<p class="section-title">Meus treinos</p>`;
+  html += `<div class="section-title-row">
+    <p class="section-title" style="margin:0;">Meus treinos</p>
+    <button class="toggle-visibility-btn" id="toggleWorkoutsBtn" aria-label="${state.settings.workoutsCollapsed ? "mostrar treinos" : "ocultar treinos"}">
+      ${state.settings.workoutsCollapsed ? ICONS.eyeOff + " Mostrar" : ICONS.eye + " Ocultar"}
+    </button>
+  </div>`;
+  if(state.settings.workoutsCollapsed){
+    html += `<div class="card collapsed-note"><p>Seus treinos estão ocultos para deixar a tela mais limpa. Toque em "Mostrar" para editar.</p></div>`;
+  } else {
   state.order.forEach((key, idx) => {
     const w = state.workouts[key];
     const color = colorFor(key, state.order);
@@ -360,6 +372,7 @@ function render(){
     <button class="add-workout-btn" id="addWorkoutBtn" style="flex:1;">${ICONS.plus} Novo treino</button>
     <button class="add-workout-btn" id="addRestBtn" style="flex:1;">${ICONS.moonSmall} Descanso</button>
   </div>`;
+  }
 
   // ----- history -----
   html += `<p class="section-title" style="margin-top:24px;">Histórico</p>`;
@@ -741,6 +754,13 @@ function attachHandlers(){
 
   const backupNowBtn = document.getElementById("backupNowBtn");
   if(backupNowBtn) backupNowBtn.addEventListener("click", exportBackup);
+
+  const toggleWorkoutsBtn = document.getElementById("toggleWorkoutsBtn");
+  if(toggleWorkoutsBtn) toggleWorkoutsBtn.addEventListener("click", async () => {
+    state.settings.workoutsCollapsed = !state.settings.workoutsCollapsed;
+    render();
+    await persist();
+  });
 
   document.querySelectorAll('[data-role="wname"]').forEach(el => {
     el.addEventListener("change", async () => {
