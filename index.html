@@ -12,6 +12,15 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
+<script>
+  // aplica tema antes do CSS pintar (evita flash)
+  (function(){
+    try {
+      const t = localStorage.getItem("gym-theme");
+      if(t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    } catch(e){}
+  })();
+</script>
 <style>
   :root{
     /* escala de espaço (4/8) */
@@ -59,10 +68,13 @@
     --shadow-sheet:0 -20px 60px rgba(0,0,0,0.6);
 
     --ease:cubic-bezier(.32,.72,0,1);
+
+    color-scheme: dark;
   }
 
+  /* Light quando sistema pede E usuário não forçou dark */
   @media (prefers-color-scheme: light){
-    :root{
+    :root:not([data-theme="dark"]){
       --bg:#f4f4f6;
       --surface:#ffffff;
       --surface-2:#f0f0f3;
@@ -82,7 +94,34 @@
 
       --shadow-card:0 12px 40px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
       --shadow-sheet:0 -20px 60px rgba(0,0,0,0.18);
+
+      color-scheme: light;
     }
+  }
+
+  /* Light forçado pelo usuário */
+  :root[data-theme="light"]{
+    --bg:#f4f4f6;
+    --surface:#ffffff;
+    --surface-2:#f0f0f3;
+    --surface-3:#e8e8ec;
+    --card-top:#ffffff;
+    --card-bottom:#fafafb;
+    --card-border:rgba(0,0,0,0.06);
+    --divider:rgba(0,0,0,0.07);
+
+    --text-primary:#0a0a0a;
+    --text-secondary:#4a4a4a;
+    --text-muted:#767676;
+    --text-label:#6a6a6a;
+
+    --dot-off:#e2e2e6;
+    --dot-future:#d8d8dc;
+
+    --shadow-card:0 12px 40px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+    --shadow-sheet:0 -20px 60px rgba(0,0,0,0.18);
+
+    color-scheme: light;
   }
 
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -95,6 +134,7 @@
     display:flex;justify-content:center;
     padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
     -webkit-font-smoothing:antialiased;
+    transition:background .2s ease, color .2s ease;
   }
   .screen{ width:100%; max-width:430px; padding:var(--s4) var(--s4) var(--s7); }
 
@@ -132,20 +172,22 @@
     margin-bottom:var(--s4);
   }
 
-  /* ---------- banners (fora do hero) ---------- */
+  /* ---------- banners ---------- */
   .banners{ display:flex; flex-direction:column; gap:var(--s2); margin-bottom:var(--s4); }
   .banner{
     background:var(--danger-bg); border:1px solid var(--danger-border);
     color:#ff8b83; font-size:12px; padding:10px 14px; border-radius:var(--r-md);
     display:flex; align-items:center; justify-content:space-between; gap:8px;
   }
-  @media (prefers-color-scheme: light){ .banner{ color:#b3241c; } }
+  @media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .banner{ color:#b3241c; } }
+  :root[data-theme="light"] .banner{ color:#b3241c; }
   .banner button{
     background:none;border:none;color:inherit;font-size:12px;font-weight:600;
     text-decoration:underline;-webkit-appearance:none;flex-shrink:0;
   }
   .banner.info{ background:var(--info-bg); border-color:var(--info-border); color:#9cc9ff; }
-  @media (prefers-color-scheme: light){ .banner.info{ color:#1a6ec4; } }
+  @media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .banner.info{ color:#1a6ec4; } }
+  :root[data-theme="light"] .banner.info{ color:#1a6ec4; }
 
   /* ---------- hero ---------- */
   .eyebrow{
@@ -190,7 +232,7 @@
     background:none; border:none; padding:0; -webkit-appearance:none;
   }
 
-  /* ---------- stats (card separado, discreto) ---------- */
+  /* ---------- stats ---------- */
   .stats-card{
     display:flex; gap:0; padding:0;
     overflow:hidden;
@@ -228,8 +270,6 @@
     transition:background .15s ease;
   }
   .toggle-visibility-btn:active{ background:var(--surface-2); }
-  .collapsed-note{ text-align:center; color:var(--text-muted); font-size:12.5px; padding:22px 16px; }
-  .collapsed-note p{ margin:0; line-height:1.5; }
 
   /* ---------- workout cards ---------- */
   .workout-card{ padding:var(--s4); }
@@ -291,8 +331,29 @@
     -webkit-appearance:none;
   }
   .progress-btn:disabled{ opacity:0.25; }
-  .ex-row-bottom{ display:flex; gap:10px; }
-  .ex-field{ flex:1; display:flex; flex-direction:column; gap:4px; }
+
+  /* tipo (força / cardio) */
+  .ex-type-toggle{
+    display:flex; gap:6px; margin-bottom:10px;
+  }
+  .ex-type-btn{
+    flex:1; padding:8px; border-radius:var(--r-sm);
+    background:var(--surface-3); border:1px solid var(--card-border);
+    color:var(--text-label); font-size:12px; font-weight:600;
+    -webkit-appearance:none;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    transition:all .15s ease;
+  }
+  .ex-type-btn.active{
+    background:var(--accent-soft);
+    border-color:var(--accent-border);
+    color:var(--accent);
+  }
+
+  .ex-row-bottom{ display:flex; gap:8px; }
+  .ex-row-bottom .ex-field{ flex:1; min-width:0; }
+  .ex-row-bottom .ex-field input{ font-size:13px; padding:8px 6px; }
+  .ex-field{ display:flex; flex-direction:column; gap:4px; }
   .ex-field span{
     font-size:9.5px; color:var(--text-muted); letter-spacing:0.05em;
     text-transform:uppercase; padding-left:2px; font-weight:600;
@@ -378,7 +439,7 @@
   .cal-cell.today{ box-shadow:0 0 0 1.6px var(--text-primary); }
   .cal-cell:active:not(.empty):not(.future){ transform:scale(0.9); }
 
-  /* ---------- reminder toggle (iOS style) ---------- */
+  /* ---------- toggle iOS ---------- */
   .switch{
     position:relative; display:inline-block;
     width:48px; height:28px; flex-shrink:0;
@@ -537,6 +598,26 @@
   .sheet-empty{ text-align:center; font-size:12.5px; color:var(--text-muted); padding:18px 10px; margin-bottom:var(--s3); }
   .sheet-actions{ display:flex; flex-direction:column; gap:10px; }
 
+  /* ---------- cronômetro do sheet ---------- */
+  .sheet-clock{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; margin:-4px 0 16px;
+    background:var(--accent-soft);
+    border:1px solid var(--accent-border);
+    border-radius:var(--r-md);
+    color:var(--accent);
+  }
+  .sheet-clock .clock-icon{ display:flex; }
+  .sheet-clock .clock-time{
+    font-size:17px; font-weight:700;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:0.02em;
+  }
+  .sheet-clock .clock-label{
+    font-size:10.5px; color:var(--text-muted);
+    text-transform:uppercase; letter-spacing:0.06em; font-weight:600;
+  }
+
   /* ---------- rest timer ---------- */
   .rest-timer{
     position:fixed; left:0; right:0; bottom:0; z-index:95;
@@ -580,7 +661,7 @@
   .progress-row span:first-child{ color:var(--text-muted); width:44px; flex-shrink:0; }
   .chart-wrap{ margin:0 -4px; }
 
-  /* ---------- lembretes ---------- */
+  /* ---------- lembretes / preferências ---------- */
   .reminder-row{ display:flex; align-items:center; justify-content:space-between; font-size:13.5px; gap:12px; }
   .reminder-time-row{
     display:flex; align-items:center; justify-content:space-between;
@@ -592,7 +673,26 @@
     color:var(--text-primary); border-radius:var(--r-sm); padding:7px 9px; font-size:13px;
     -webkit-appearance:none;
   }
-  .reminder-note{ font-size:10.5px; color:var(--text-muted); line-height:1.5; margin:14px 0 0; }
+
+  /* ---------- seletor de tema ---------- */
+  .theme-selector{
+    display:flex; gap:6px; background:var(--surface-3);
+    border:1px solid var(--card-border);
+    border-radius:var(--r-sm); padding:3px;
+  }
+  .theme-opt{
+    flex:1; padding:8px 12px; border-radius:8px;
+    background:none; border:none;
+    color:var(--text-label); font-size:12px; font-weight:600;
+    -webkit-appearance:none;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    transition:all .15s ease;
+  }
+  .theme-opt.active{
+    background:var(--surface);
+    color:var(--text-primary);
+    box-shadow:0 1px 3px rgba(0,0,0,0.15);
+  }
 
   /* ---------- helpers ---------- */
   .hidden{ display:none !important; }
@@ -606,37 +706,11 @@
       transition-duration:0.01ms !important;
     }
   }
-
-  /* ---------- cronômetro do sheet ---------- */
-  .sheet-clock{
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    padding:10px 14px; margin:-4px 0 16px;
-    background:var(--accent-soft);
-    border:1px solid var(--accent-border);
-    border-radius:var(--r-md);
-    color:var(--accent);
-  }
-  .sheet-clock .clock-icon{ display:flex; }
-  .sheet-clock .clock-time{
-    font-size:17px; font-weight:700;
-    font-variant-numeric:tabular-nums;
-    letter-spacing:0.02em;
-  }
-  .sheet-clock .clock-label{
-    font-size:10.5px; color:var(--text-muted);
-    text-transform:uppercase; letter-spacing:0.06em; font-weight:600;
-  }
-
-  /* ---------- 3 colunas no ex-row-bottom ---------- */
-  .ex-row-bottom{ display:flex; gap:8px; }
-  .ex-row-bottom .ex-field{ flex:1; min-width:0; }
-  .ex-row-bottom .ex-field input{ font-size:13px; padding:8px 6px; }
-
 </style>
 </head>
 <body>
 <div class="screen">
-  <div class="sync-row hidden" id="syncRow" title="Seus dados ficam salvos apenas neste navegador/aparelho. Use exportar backup para não perdê-los.">
+  <div class="sync-row hidden" id="syncRow">
     <span class="sync-dot" id="syncDot"></span>
     <span id="syncText"></span>
     <button class="sync-retry" id="syncRetryBtn" style="display:none;">tentar novamente</button>

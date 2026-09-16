@@ -1,4 +1,5 @@
 const STORAGE_KEY = "gym-data";
+const THEME_KEY = "gym-theme";
 const PALETTE = ["#ff5a1f", "#3d9dff", "#30d158", "#ffd60a", "#bf5af2", "#64d2ff"];
 const REST_COLOR = "#5b5b5b";
 const WEEKDAY_FULL = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
@@ -18,12 +19,15 @@ const ICONS = {
   chart: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l3-4 3 3 4-6"/></svg>`,
   moon: `<svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>`,
   moonSmall: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>`,
+  sunSmall: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`,
+  autoSmall: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor"/></svg>`,
   left: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`,
   right: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`,
   eye: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
   eyeOff: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.6 21.6 0 0 1-3.22 4.44M1 1l22 22"/><path d="M9.53 9.53A3.5 3.5 0 0 0 12 15.5a3.5 3.5 0 0 0 2.47-1.03"/></svg>`,
   dumbbell: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M3 9v6M21 9v6M1 10.5v3M23 10.5v3"/></svg>`,
-  timer: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>`
+  timer: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>`,
+  cardio: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>`
 };
 
 // ---------- utils ----------
@@ -72,6 +76,33 @@ function fmtClock(totalSec){
   const sec = s % 60;
   if(h > 0) return h + ":" + pad(m) + ":" + pad(sec);
   return pad(m) + ":" + pad(sec);
+}
+function isCardio(ex){ return ex && ex.type === "cardio"; }
+
+// ---------- theme ----------
+function getThemePref(){
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    if(t === "light" || t === "dark" || t === "auto") return t;
+  } catch(e){}
+  return "auto";
+}
+function applyTheme(pref){
+  try {
+    if(pref === "auto"){
+      delete document.documentElement.dataset.theme;
+      localStorage.removeItem(THEME_KEY);
+    } else {
+      document.documentElement.dataset.theme = pref;
+      localStorage.setItem(THEME_KEY, pref);
+    }
+    // atualiza meta theme-color
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if(meta){
+      const dark = pref === "dark" || (pref === "auto" && !window.matchMedia("(prefers-color-scheme: light)").matches);
+      meta.setAttribute("content", dark ? "#000000" : "#f4f4f6");
+    }
+  } catch(e){}
 }
 
 // ---------- state ----------
@@ -132,6 +163,7 @@ function migrateSessionEntry(entry){
   Object.keys(entry.log).forEach(exId => {
     const v = entry.log[exId];
     if(v && !Array.isArray(v)) {
+      // formato antigo: { weight, reps }
       const weight = v.weight;
       const reps = v.reps;
       const hasAny = (weight !== "" && weight != null) || (reps !== "" && reps != null);
@@ -159,6 +191,15 @@ function migrateSettings(s){
   if(s.settings.restDuration === undefined) s.settings.restDuration = 90;
   if(s.settings.weekStartsMonday === undefined) s.settings.weekStartsMonday = false;
   if(s.settings.restTimerActive === undefined) s.settings.restTimerActive = null;
+}
+// garante que exercícios antigos ganhem "type"
+function migrateWorkouts(w){
+  if(!w) return;
+  Object.values(w.workouts || {}).forEach(wk => {
+    (wk.exercises || []).forEach(ex => {
+      if(!ex.type) ex.type = "strength";
+    });
+  });
 }
 
 // ---------- storage ----------
@@ -191,6 +232,7 @@ async function loadData(){
         state = { ...state, ...parsed };
         migrateSessions(state);
         migrateSettings(state);
+        migrateWorkouts(state);
       }
     }
     loadFailed = false;
@@ -303,6 +345,16 @@ function sessionsThisWeek(){
   }
   return c;
 }
+
+// busca o exercício em qualquer workout
+function findExercise(exId){
+  for(const w of Object.values(state.workouts)){
+    const ex = (w.exercises || []).find(e => e.id === exId);
+    if(ex) return ex;
+  }
+  return null;
+}
+
 function lastLoggedValue(exId, beforeKey){
   const keys = Object.keys(state.sessions).filter(k => k < beforeKey).sort();
   for(let i = keys.length - 1; i >= 0; i--){
@@ -310,54 +362,59 @@ function lastLoggedValue(exId, beforeKey){
     const sets = log && log[exId];
     if(Array.isArray(sets) && sets.length){
       const last = sets[sets.length - 1];
-      if(last && (last.weight != null || last.reps != null)) return last;
+      if(last && (last.weight != null || last.reps != null || last.minutes != null)) return last;
     }
   }
   return null;
 }
+
 function exerciseHistory(exId){
+  const ex = findExercise(exId);
+  const cardio = isCardio(ex);
   return Object.keys(state.sessions).sort().map(k => {
     const log = sessionLog(k);
     const sets = log && log[exId];
     if(!Array.isArray(sets) || sets.length === 0) return null;
+
+    if(cardio){
+      const minutes = sets.map(s => s.minutes).filter(v => v != null && !isNaN(v));
+      if(minutes.length === 0) return null;
+      const totalMin = minutes.reduce((a,b) => a+b, 0);
+      const maxMin = Math.max(...minutes);
+      return { date: k, minutes: maxMin, totalMinutes: totalMin, reps: null, weight: null };
+    }
+
     const weights = sets.map(s => s.weight).filter(w => w != null);
     const reps = sets.map(s => s.reps).filter(r => r != null);
     const maxWeight = weights.length ? Math.max(...weights) : null;
     const totalReps = reps.length ? reps.reduce((a,b) => a+b, 0) : null;
-    const volume = sets.reduce((sum, s) => sum + ((s.weight||0) * (s.reps||0)), 0);
     if(maxWeight == null && totalReps == null) return null;
-    return { date: k, weight: maxWeight, reps: totalReps, volume };
+    return { date: k, weight: maxWeight, reps: totalReps };
   }).filter(Boolean);
 }
+
 function daysSince(iso){
   if(!iso) return Infinity;
   const then = new Date(iso).getTime();
   if(isNaN(then)) return Infinity;
   return (Date.now() - then) / (1000*60*60*24);
 }
-
-// duração do treino a partir de uma sessão
 function sessionDuration(session){
   if(!session || !session.startedAt || !session.endedAt) return null;
   const ms = session.endedAt - session.startedAt;
   if(ms <= 0) return null;
   return ms;
 }
-
-// descanso específico do exercício (procura em qualquer treino)
 function restForExercise(exId){
-  for(const w of Object.values(state.workouts)){
-    const ex = (w.exercises || []).find(e => e.id === exId);
-    if(ex){
-      const n = parseInt(ex.rest, 10);
-      if(!isNaN(n) && n > 0) return n;
-      break;
-    }
+  const ex = findExercise(exId);
+  if(ex){
+    const n = parseInt(ex.rest, 10);
+    if(!isNaN(n) && n > 0) return n;
   }
   return state.settings.restDuration || 90;
 }
 
-// ---------- render: app ----------
+// ---------- render ----------
 function render(){
   const app = document.getElementById("app");
   const next = nextWorkoutLetter();
@@ -387,7 +444,6 @@ function render(){
   let html = "";
   if(banners) html += `<div class="banners">${banners}</div>`;
 
-  // ----- duração do treino de hoje -----
   const todaySession = state.sessions[todayKey()];
   const todayDuration = sessionDuration(todaySession);
 
@@ -447,19 +503,30 @@ function render(){
         </div>
         ${w.isRest ? `<div class="rest-note">Dia de descanso — sem exercícios para registrar.</div>` : `
         ${w.exercises.length > 0 ? w.exercises.map(ex => {
+          const cardio = isCardio(ex);
           const hasHist = exerciseHistory(ex.id).length > 0;
           return `
           <div class="exercise-row" data-exid="${ex.id}">
             <div class="ex-row-top">
-              <input class="ex-name-input" data-role="exname" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.name)}" placeholder="Ex: Supino reto" aria-label="Nome do exercício">
+              <input class="ex-name-input" data-role="exname" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.name)}" placeholder="${cardio ? "Ex: Esteira, Bike..." : "Ex: Supino reto"}" aria-label="Nome do exercício">
               <button class="progress-btn" data-role="viewprogress" data-exid="${ex.id}" data-name="${escapeAttr(ex.name || "Exercício")}" ${hasHist ? "" : "disabled"} aria-label="Ver progresso">${ICONS.chart}</button>
               <button class="ex-del" data-role="delex" data-letter="${key}" data-exid="${ex.id}" aria-label="remover exercício">${ICONS.close}</button>
             </div>
-            <div class="ex-row-bottom">
-              <label class="ex-field"><span>séries</span><input data-role="exsets" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.sets)}" placeholder="4" inputmode="numeric" aria-label="Séries"></label>
-              <label class="ex-field"><span>reps</span><input data-role="exreps" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.reps)}" placeholder="12" inputmode="numeric" aria-label="Repetições"></label>
-              <label class="ex-field"><span>descanso (s)</span><input data-role="exrest" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.rest || "")}" placeholder="90" inputmode="numeric" aria-label="Descanso em segundos"></label>
+            <div class="ex-type-toggle">
+              <button class="ex-type-btn ${cardio ? "" : "active"}" data-role="extype" data-letter="${key}" data-exid="${ex.id}" data-type="strength">${ICONS.dumbbell} Força</button>
+              <button class="ex-type-btn ${cardio ? "active" : ""}" data-role="extype" data-letter="${key}" data-exid="${ex.id}" data-type="cardio">${ICONS.cardio} Cardio</button>
             </div>
+            ${cardio ? `
+              <div class="ex-row-bottom">
+                <label class="ex-field"><span>minutos</span><input data-role="exmins" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.mins || "")}" placeholder="30" inputmode="numeric" aria-label="Minutos"></label>
+              </div>
+            ` : `
+              <div class="ex-row-bottom">
+                <label class="ex-field"><span>séries</span><input data-role="exsets" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.sets)}" placeholder="4" inputmode="numeric" aria-label="Séries"></label>
+                <label class="ex-field"><span>reps</span><input data-role="exreps" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.reps)}" placeholder="12" inputmode="numeric" aria-label="Repetições"></label>
+                <label class="ex-field"><span>descanso (s)</span><input data-role="exrest" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.rest || "")}" placeholder="90" inputmode="numeric" aria-label="Descanso em segundos"></label>
+              </div>
+            `}
           </div>`;
         }).join("") : `<div class="empty-state">
             <div class="empty-icon">${ICONS.dumbbell}</div>
@@ -505,13 +572,21 @@ function render(){
       <span>Horário</span>
       <input type="time" id="reminderTime" value="${r.time}" aria-label="Horário do lembrete">
     </div>
-    <p class="reminder-note">O lembrete funciona enquanto o app está aberto. O iPhone não permite alarmes em segundo plano para apps instalados via Safari sem um servidor de notificações próprio.</p>
   </div>`;
 
   // ----- preferences -----
+  const themePref = getThemePref();
   html += `<p class="section-title" style="margin-top:24px;">Preferências</p>
   <div class="card">
-    <div class="reminder-row">
+    <div class="reminder-row" style="margin-bottom:14px;">
+      <span>Tema</span>
+    </div>
+    <div class="theme-selector">
+      <button class="theme-opt ${themePref === "light" ? "active" : ""}" data-role="settheme" data-theme="light">${ICONS.sunSmall} Claro</button>
+      <button class="theme-opt ${themePref === "dark" ? "active" : ""}" data-role="settheme" data-theme="dark">${ICONS.moonSmall} Escuro</button>
+      <button class="theme-opt ${themePref === "auto" ? "active" : ""}" data-role="settheme" data-theme="auto">${ICONS.autoSmall} Auto</button>
+    </div>
+    <div class="reminder-row" style="margin-top:14px;">
       <span>Duração do descanso padrão</span>
       <div class="step-group" style="max-width:140px;">
         <button class="step-btn" id="restMinus" aria-label="diminuir">−</button>
@@ -617,7 +692,6 @@ function openDaySheet(dateKey){
   const existing = state.sessions[dateKey];
   const letter = existing ? sessionLetter(dateKey) : (dateKey === todayKey() ? nextWorkoutLetter() : state.order[0]);
   const existingLog = existing ? sessionLog(dateKey) : {};
-  // se já existe sessão com startedAt, reusa; senão marca agora
   const startedAt = existing?.startedAt || Date.now();
   overlay = {
     type: "day",
@@ -663,6 +737,17 @@ function ensureSetsForExercise(log, exId, defaultSets){
   }
   return log[exId];
 }
+function ensureCardioSets(log, exId){
+  if(!Array.isArray(log[exId]) || log[exId].length === 0){
+    log[exId] = [{ minutes: null, done: false }];
+  }
+  // garante campos
+  log[exId].forEach(s => {
+    if(!("minutes" in s)) s.minutes = null;
+    if(!("done" in s)) s.done = false;
+  });
+  return log[exId];
+}
 
 function renderDayOverlay(root){
   const { dateKey, letter, log, startedAt } = overlay;
@@ -698,39 +783,8 @@ function renderDayOverlay(root){
     ${w.isRest
       ? `<div class="sheet-empty">Dia de descanso — nada para registrar.</div>`
       : (w.exercises.length ? `<div class="sheet-exercises">${w.exercises.map(ex => {
-          const last = lastLoggedValue(ex.id, dateKey);
-          const sets = ensureSetsForExercise(log, ex.id, ex.sets);
-          const defaultReps = parseInt(ex.reps, 10) || null;
-          const restSec = restForExercise(ex.id);
-          const lastLabel = last
-            ? `última vez: ${last.weight != null ? fmtWeight(last.weight) + " kg" : "—"} × ${last.reps != null ? last.reps : "—"}`
-            : "primeira vez registrando";
-          return `<div class="sheet-ex-row" data-exid="${ex.id}">
-            <div class="sheet-ex-name">${escapeHtml(ex.name || "Exercício")}</div>
-            <div class="sheet-ex-last">${lastLabel} · descanso ${restSec}s</div>
-            <div class="sheet-sets" data-exid="${ex.id}">
-              ${sets.map((s, i) => {
-                const initialWeight = s.weight != null ? s.weight : (last?.weight != null ? last.weight : 0);
-                const initialReps = s.reps != null ? s.reps : (defaultReps != null ? defaultReps : (last?.reps != null ? last.reps : 10));
-                return `<div class="sheet-set ${s.done ? "done" : ""}" data-setidx="${i}">
-                  <div class="sheet-set-num">${i+1}</div>
-                  <div class="step-group">
-                    <button class="step-btn" data-role="wminus" data-exid="${ex.id}" data-setidx="${i}" aria-label="diminuir peso">−</button>
-                    <div class="step-value" data-field="weight" data-exid="${ex.id}" data-setidx="${i}" data-value="${initialWeight}">${fmtWeight(initialWeight)}</div>
-                    <span class="step-unit">kg</span>
-                    <button class="step-btn" data-role="wplus" data-exid="${ex.id}" data-setidx="${i}" aria-label="aumentar peso">+</button>
-                  </div>
-                  <div class="step-group">
-                    <button class="step-btn" data-role="rminus" data-exid="${ex.id}" data-setidx="${i}" aria-label="diminuir reps">−</button>
-                    <div class="step-value" data-field="reps" data-exid="${ex.id}" data-setidx="${i}" data-value="${initialReps}">${initialReps}</div>
-                    <button class="step-btn" data-role="rplus" data-exid="${ex.id}" data-setidx="${i}" aria-label="aumentar reps">+</button>
-                  </div>
-                  <button class="sheet-set-check" data-role="toggleSet" data-exid="${ex.id}" data-setidx="${i}" aria-label="marcar série ${i+1}">${ICONS.checkSm}</button>
-                </div>`;
-              }).join("")}
-            </div>
-            <button class="add-set-btn" data-role="addset" data-exid="${ex.id}">+ adicionar série</button>
-          </div>`;
+          if(isCardio(ex)) return renderCardioRow(ex, log, dateKey);
+          return renderStrengthRow(ex, log, dateKey);
         }).join("")}</div>` : `<div class="empty-state">
             <div class="empty-icon">${ICONS.dumbbell}</div>
             <p class="empty-title">Treino sem exercícios</p>
@@ -747,7 +801,6 @@ function renderDayOverlay(root){
   document.getElementById("sheetBackdrop").addEventListener("click", closeOverlay);
   document.getElementById("sheetClose").addEventListener("click", closeOverlay);
 
-  // cronômetro do treino
   if(sheetClockInterval){ clearInterval(sheetClockInterval); }
   sheetClockInterval = setInterval(() => {
     const el = document.getElementById("sheetClockTime");
@@ -760,6 +813,7 @@ function renderDayOverlay(root){
     b.addEventListener("click", () => { haptic(6); overlay.letter = b.dataset.letter; renderOverlay(); });
   });
 
+  // step buttons (peso/reps/min)
   root.querySelectorAll(".step-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       haptic(6);
@@ -780,6 +834,11 @@ function renderDayOverlay(root){
         set.reps = Math.max(0, cur + (role === "rplus" ? 1 : -1));
         const el = root.querySelector(`[data-field="reps"][data-exid="${exid}"][data-setidx="${setidx}"]`);
         if(el){ el.textContent = set.reps; el.dataset.value = set.reps; }
+      } else if(role === "mplus" || role === "mminus"){
+        const cur = set.minutes != null ? set.minutes : 0;
+        set.minutes = Math.max(0, cur + (role === "mplus" ? 1 : -1));
+        const el = root.querySelector(`[data-field="minutes"][data-exid="${exid}"][data-setidx="${setidx}"]`);
+        if(el){ el.textContent = set.minutes; el.dataset.value = set.minutes; }
       }
     });
   });
@@ -824,6 +883,71 @@ function renderDayOverlay(root){
   enableSheetDrag(root.querySelector("#daySheet"), root.querySelector("#sheetHandle"));
 }
 
+function renderStrengthRow(ex, log, dateKey){
+  const last = lastLoggedValue(ex.id, dateKey);
+  const sets = ensureSetsForExercise(log, ex.id, ex.sets);
+  const defaultReps = parseInt(ex.reps, 10) || null;
+  const restSec = restForExercise(ex.id);
+  const lastLabel = last
+    ? `última vez: ${last.weight != null ? fmtWeight(last.weight) + " kg" : "—"} × ${last.reps != null ? last.reps : "—"}`
+    : "primeira vez registrando";
+  return `<div class="sheet-ex-row" data-exid="${ex.id}">
+    <div class="sheet-ex-name">${escapeHtml(ex.name || "Exercício")}</div>
+    <div class="sheet-ex-last">${lastLabel} · descanso ${restSec}s</div>
+    <div class="sheet-sets" data-exid="${ex.id}">
+      ${sets.map((s, i) => {
+        const initialWeight = s.weight != null ? s.weight : (last?.weight != null ? last.weight : 0);
+        const initialReps = s.reps != null ? s.reps : (defaultReps != null ? defaultReps : (last?.reps != null ? last.reps : 10));
+        return `<div class="sheet-set ${s.done ? "done" : ""}" data-setidx="${i}">
+          <div class="sheet-set-num">${i+1}</div>
+          <div class="step-group">
+            <button class="step-btn" data-role="wminus" data-exid="${ex.id}" data-setidx="${i}" aria-label="diminuir peso">−</button>
+            <div class="step-value" data-field="weight" data-exid="${ex.id}" data-setidx="${i}" data-value="${initialWeight}">${fmtWeight(initialWeight)}</div>
+            <span class="step-unit">kg</span>
+            <button class="step-btn" data-role="wplus" data-exid="${ex.id}" data-setidx="${i}" aria-label="aumentar peso">+</button>
+          </div>
+          <div class="step-group">
+            <button class="step-btn" data-role="rminus" data-exid="${ex.id}" data-setidx="${i}" aria-label="diminuir reps">−</button>
+            <div class="step-value" data-field="reps" data-exid="${ex.id}" data-setidx="${i}" data-value="${initialReps}">${initialReps}</div>
+            <button class="step-btn" data-role="rplus" data-exid="${ex.id}" data-setidx="${i}" aria-label="aumentar reps">+</button>
+          </div>
+          <button class="sheet-set-check" data-role="toggleSet" data-exid="${ex.id}" data-setidx="${i}" aria-label="marcar série ${i+1}">${ICONS.checkSm}</button>
+        </div>`;
+      }).join("")}
+    </div>
+    <button class="add-set-btn" data-role="addset" data-exid="${ex.id}">+ adicionar série</button>
+  </div>`;
+}
+
+function renderCardioRow(ex, log, dateKey){
+  const last = lastLoggedValue(ex.id, dateKey);
+  const sets = ensureCardioSets(log, ex.id);
+  const defaultMin = parseInt(ex.mins, 10) || null;
+  const lastLabel = last && last.minutes != null
+    ? `última vez: ${last.minutes} min`
+    : "primeira vez registrando";
+  return `<div class="sheet-ex-row" data-exid="${ex.id}">
+    <div class="sheet-ex-name">${ICONS.cardio} ${escapeHtml(ex.name || "Cardio")}</div>
+    <div class="sheet-ex-last">${lastLabel}</div>
+    <div class="sheet-sets" data-exid="${ex.id}">
+      ${sets.map((s, i) => {
+        const initialMin = s.minutes != null ? s.minutes : (defaultMin != null ? defaultMin : (last?.minutes != null ? last.minutes : 20));
+        return `<div class="sheet-set ${s.done ? "done" : ""}" data-setidx="${i}">
+          <div class="sheet-set-num">${i+1}</div>
+          <div class="step-group">
+            <button class="step-btn" data-role="mminus" data-exid="${ex.id}" data-setidx="${i}" aria-label="diminuir minutos">−</button>
+            <div class="step-value" data-field="minutes" data-exid="${ex.id}" data-setidx="${i}" data-value="${initialMin}">${initialMin}</div>
+            <span class="step-unit">min</span>
+            <button class="step-btn" data-role="mplus" data-exid="${ex.id}" data-setidx="${i}" aria-label="aumentar minutos">+</button>
+          </div>
+          <button class="sheet-set-check" data-role="toggleSet" data-exid="${ex.id}" data-setidx="${i}" aria-label="marcar ${i+1}">${ICONS.checkSm}</button>
+        </div>`;
+      }).join("")}
+    </div>
+    <button class="add-set-btn" data-role="addset" data-exid="${ex.id}">+ adicionar sessão</button>
+  </div>`;
+}
+
 function enableSheetDrag(sheetEl, handleEl){
   if(!sheetEl || !handleEl) return;
   let startY = 0, curY = 0, dragging = false;
@@ -853,9 +977,13 @@ function enableSheetDrag(sheetEl, handleEl){
 }
 
 async function saveDaySheet(){
-  const { dateKey, letter, log, startedAt, isEditing } = overlay;
+  const { dateKey, letter, log, startedAt } = overlay;
+  // limpa séries vazias (peso/reps/min nulos e não done)
   Object.keys(log).forEach(exId => {
-    log[exId] = (log[exId] || []).filter(s => s.weight != null || s.reps != null || s.done);
+    log[exId] = (log[exId] || []).filter(s => {
+      if(s.minutes != null || s.weight != null || s.reps != null) return true;
+      return !!s.done;
+    });
   });
   state.sessions[dateKey] = {
     letter,
@@ -969,26 +1097,27 @@ function renderRestTimer(){
 }
 
 // ---------- progress sheet ----------
-function buildLineChart(hist){
+function buildLineChart(hist, unit){
   const w = 300, h = 140, padL = 34, padR = 14, padT = 14, padB = 24;
-  const validWeights = hist.map(p => p.weight).filter(v => v != null && !isNaN(v));
-  if(validWeights.length === 0) return "";
-  const validPts = hist.filter(p => p.weight != null && !isNaN(p.weight));
-  let min = Math.min(...validWeights), max = Math.max(...validWeights);
+  const validPts = hist.filter(p => p.weight != null && !isNaN(p.weight) || p.minutes != null && !isNaN(p.minutes));
+  const validValues = validPts.map(p => p.weight != null ? p.weight : p.minutes);
+  if(validValues.length === 0) return "";
+  let min = Math.min(...validValues), max = Math.max(...validValues);
   if(min === max){ min -= 1; max += 1; }
   const stepX = validPts.length > 1 ? (w - padL - padR) / (validPts.length - 1) : 0;
   const pts = validPts.map((p, i) => {
     const x = padL + i * stepX;
-    const y = padT + (1 - (p.weight - min) / (max - min)) * (h - padT - padB);
+    const val = p.weight != null ? p.weight : p.minutes;
+    const y = padT + (1 - (val - min) / (max - min)) * (h - padT - padB);
     return { x, y };
   });
   const linePath = pts.map((pt, i) => (i === 0 ? "M" : "L") + pt.x.toFixed(1) + " " + pt.y.toFixed(1)).join(" ");
   const circles = pts.map(pt => `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="3.2" fill="var(--accent)"/>`).join("");
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="Gráfico de evolução de carga">
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="Gráfico de evolução">
     <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${h-padB}" stroke="var(--divider)" stroke-width="1"/>
     <line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="var(--divider)" stroke-width="1"/>
-    <text x="4" y="${padT+4}" font-size="9" fill="var(--text-muted)">${max}kg</text>
-    <text x="4" y="${h-padB+4}" font-size="9" fill="var(--text-muted)">${min}kg</text>
+    <text x="4" y="${padT+4}" font-size="9" fill="var(--text-muted)">${max}${unit}</text>
+    <text x="4" y="${h-padB+4}" font-size="9" fill="var(--text-muted)">${min}${unit}</text>
     <path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
     ${circles}
   </svg>`;
@@ -996,12 +1125,21 @@ function buildLineChart(hist){
 
 function renderProgressOverlay(root){
   const { exId, name } = overlay;
+  const ex = findExercise(exId);
+  const cardio = isCardio(ex);
   const hist = exerciseHistory(exId);
   let body;
   if(hist.length === 0){
-    body = `<div class="sheet-empty">Ainda não há registros de carga para "${escapeHtml(name)}".</div>`;
+    body = `<div class="sheet-empty">Ainda não há registros para "${escapeHtml(name)}".</div>`;
+  } else if(cardio){
+    const chart = buildLineChart(hist, "min");
+    body = `<div class="chart-wrap">${chart}</div>` +
+      `<div class="progress-list">${hist.slice().reverse().map(p => {
+        const [, mo, da] = p.date.split("-").map(Number);
+        return `<div class="progress-row"><span>${da}/${mo}</span><span>${p.minutes != null ? p.minutes + " min" : "—"}</span><span>${p.totalMinutes ? p.totalMinutes + " min total" : ""}</span></div>`;
+      }).join("")}</div>`;
   } else {
-    const chart = buildLineChart(hist);
+    const chart = buildLineChart(hist, "kg");
     body = `<div class="chart-wrap">${chart || `<div class="sheet-empty">Só há repetições registradas, sem peso, até agora.</div>`}</div>` +
       `<div class="progress-list">${hist.slice().reverse().map(p => {
         const [, mo, da] = p.date.split("-").map(Number);
@@ -1077,6 +1215,7 @@ function renderImportChoiceOverlay(root){
 async function mergeImportData(parsed){
   migrateSessions(parsed);
   migrateSettings(parsed);
+  migrateWorkouts(parsed);
   state.sessions = { ...state.sessions, ...parsed.sessions };
   initExIdCounter();
   initRestCounter();
@@ -1089,6 +1228,7 @@ async function replaceImportData(parsed){
   state = { ...state, ...parsed };
   migrateSessions(state);
   migrateSettings(state);
+  migrateWorkouts(state);
   initExIdCounter();
   initRestCounter();
   overlay = null;
@@ -1121,22 +1261,25 @@ async function exportBackup(){
 
 function exportCsv(){
   try{
-    const rows = [["data","treino","exercicio","serie","peso_kg","reps","feito"]];
+    const rows = [["data","treino","exercicio","tipo","serie","peso_kg","reps","minutos","feito"]];
     Object.keys(state.sessions).sort().forEach(dateKey => {
       const letter = sessionLetter(dateKey);
       const log = sessionLog(dateKey);
       const w = state.workouts[letter];
       const exMap = {};
-      (w?.exercises || []).forEach(ex => exMap[ex.id] = ex.name || ex.id);
+      (w?.exercises || []).forEach(ex => exMap[ex.id] = { name: ex.name || ex.id, type: ex.type || "strength" });
       Object.keys(log).forEach(exId => {
+        const meta = exMap[exId] || { name: exId, type: "strength" };
         (log[exId] || []).forEach((s, i) => {
           rows.push([
             dateKey,
             letter || "",
-            exMap[exId] || exId,
+            meta.name,
+            meta.type === "cardio" ? "cardio" : "forca",
             String(i+1),
             s.weight != null ? String(s.weight).replace(".", ",") : "",
             s.reps != null ? String(s.reps) : "",
+            s.minutes != null ? String(s.minutes) : "",
             s.done ? "1" : "0"
           ]);
         });
@@ -1249,15 +1392,32 @@ function attachHandlers(){
     });
   });
 
-  document.querySelectorAll('[data-role="exname"], [data-role="exsets"], [data-role="exreps"], [data-role="exrest"]').forEach(el => {
+  // tipo (força/cardio)
+  document.querySelectorAll('[data-role="extype"]').forEach(el => {
+    el.addEventListener("click", async () => {
+      haptic(6);
+      const w = state.workouts[el.dataset.letter];
+      const ex = w.exercises.find(e => e.id === el.dataset.exid);
+      if(!ex) return;
+      const newType = el.dataset.type;
+      if((ex.type || "strength") === newType) return;
+      ex.type = newType;
+      render();
+      await persist();
+    });
+  });
+
+  document.querySelectorAll('[data-role="exname"], [data-role="exsets"], [data-role="exreps"], [data-role="exrest"], [data-role="exmins"]').forEach(el => {
     el.addEventListener("change", async () => {
       const w = state.workouts[el.dataset.letter];
       const ex = w.exercises.find(e => e.id === el.dataset.exid);
       if(!ex) return;
-      if(el.dataset.role === "exname") ex.name = el.value;
-      if(el.dataset.role === "exsets") ex.sets = el.value;
-      if(el.dataset.role === "exreps") ex.reps = el.value;
-      if(el.dataset.role === "exrest") ex.rest = el.value;
+      const r = el.dataset.role;
+      if(r === "exname") ex.name = el.value;
+      if(r === "exsets") ex.sets = el.value;
+      if(r === "exreps") ex.reps = el.value;
+      if(r === "exrest") ex.rest = el.value;
+      if(r === "exmins") ex.mins = el.value;
       await persist();
     });
   });
@@ -1282,7 +1442,7 @@ function attachHandlers(){
     el.addEventListener("click", async () => {
       haptic(6);
       const w = state.workouts[el.dataset.letter];
-      w.exercises.push({ id: newExId(), name: "", sets: "", reps: "", rest: "" });
+      w.exercises.push({ id: newExId(), name: "", sets: "", reps: "", rest: "", mins: "", type: "strength" });
       render();
       await persist();
       const inputs = document.querySelectorAll(`[data-letter="${el.dataset.letter}"][data-role="exname"]`);
@@ -1343,6 +1503,16 @@ function attachHandlers(){
     await persist();
   });
 
+  // tema
+  document.querySelectorAll('[data-role="settheme"]').forEach(el => {
+    el.addEventListener("click", () => {
+      haptic(6);
+      const pref = el.dataset.theme;
+      applyTheme(pref);
+      render();
+    });
+  });
+
   const restMinus = $("restMinus");
   const restPlus = $("restPlus");
   const updateRest = async (delta) => {
@@ -1398,6 +1568,9 @@ function nextAvailableLetter(){
 
 // ---------- init ----------
 (async function init(){
+  // aplica tema salvo (ou auto)
+  applyTheme(getThemePref());
+
   if(!storageAvailable()){
     loadFailed = true;
     render();
@@ -1425,6 +1598,14 @@ function nextAvailableLetter(){
   window.addEventListener("beforeunload", () => {
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e){}
   });
+
+  // reage a mudanças do tema do sistema quando em "auto"
+  if(window.matchMedia){
+    const mq = window.matchMedia("(prefers-color-scheme: light)");
+    mq.addEventListener?.("change", () => {
+      if(getThemePref() === "auto") applyTheme("auto");
+    });
+  }
 })();
 
 // ---------- service worker ----------
