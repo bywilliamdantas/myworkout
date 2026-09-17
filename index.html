@@ -175,7 +175,6 @@
     color:var(--text-label); margin:0 0 var(--s4); text-transform:uppercase;
   }
 
-  /* ---------- HERO redesenhei o topo para caber o cronômetro ---------- */
   .hero-head{
     display:flex; align-items:center; gap:var(--s3);
     margin-bottom:var(--s4);
@@ -184,7 +183,6 @@
   .hero-head .workout-name{ font-size:19px; font-weight:700; margin-bottom:4px; }
   .hero-head .workout-sub{ font-size:12.5px; color:var(--text-muted); }
 
-  /* botão de status: substitui o letter-badge */
   .status-btn{
     width:76px;height:76px;border-radius:22px;
     display:flex;align-items:center;justify-content:center;
@@ -204,8 +202,6 @@
   .status-btn.state-idle{ background:#30d158; }
   .status-btn.state-running{ background:#30d158; }
   .status-btn.state-paused{ background:#ff5a1f; }
-  .status-btn.state-ended{ background:#1c1c1c; border:1px solid rgba(255,255,255,0.12); }
-  :root[data-theme="light"] .status-btn.state-ended{ background:#0a0a0a; }
 
   .hero-clock{
     display:flex; align-items:center; gap:6px;
@@ -222,11 +218,6 @@
     background:rgba(255,90,31,0.18);
     border-color:rgba(255,90,31,0.5);
   }
-  .hero-clock.ended{
-    background:var(--surface-3);
-    border-color:var(--card-border);
-    color:var(--text-muted);
-  }
   .hero-clock.hidden{ display:none; }
   .hero-clock svg{ width:14px; height:14px; }
   .hero-clock .clock-time{
@@ -235,7 +226,6 @@
     letter-spacing:0.02em;
   }
 
-  /* botões Start / Stop / End */
   .control-row{
     display:grid;
     grid-template-columns:1fr 1fr 1fr;
@@ -260,12 +250,46 @@
   .ctrl-btn.end{ background:#0a0a0a; color:#fff; border:1px solid rgba(255,255,255,0.12); }
   :root[data-theme="light"] .ctrl-btn.end{ background:#0a0a0a; }
 
-  /* estado finalizado: substitui os botões por um "editar/desfazer" */
-  .hero-links{ display:flex; justify-content:center; gap:var(--s5); margin-top:var(--s3); }
-  .undo-link{
-    display:block; text-align:center;
-    font-size:12px; color:var(--text-muted); text-decoration:underline;
-    background:none; border:none; padding:0; -webkit-appearance:none;
+  /* linha de ações (editar / desfazer / novo treino) */
+  .hero-action-row{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+    margin-top:12px;
+  }
+  .hero-action{
+    padding:10px 6px;
+    border-radius:var(--r-md);
+    font-size:12px;
+    font-weight:700;
+    -webkit-appearance:none;
+    border:1px solid var(--card-border);
+    background:var(--surface-2);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    transition:transform .12s var(--ease), opacity .15s ease;
+    color:var(--text-label);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .hero-action:active{ transform:scale(0.97); opacity:0.85; }
+  .hero-action.edit{
+    color:#3d9dff;
+    border-color:rgba(61,157,255,0.3);
+    background:rgba(61,157,255,0.12);
+  }
+  .hero-action.undo{
+    color:#ff453a;
+    border-color:rgba(255,69,58,0.3);
+    background:rgba(255,69,58,0.12);
+  }
+  .hero-action.second{
+    color:var(--accent);
+    border-color:var(--accent-border);
+    background:var(--accent-soft);
   }
 
   .stats-card{
@@ -462,12 +486,24 @@
     display:flex; align-items:center; justify-content:center;
     font-size:12.5px; -webkit-appearance:none;
     transition:transform .12s var(--ease);
+    position:relative;
   }
   .cal-cell.filled{ font-weight:700; }
   .cal-cell.empty, .cal-cell.future{ background:transparent; pointer-events:none; }
   .cal-cell.future{ color:var(--text-muted); opacity:0.45; }
   .cal-cell.today{ box-shadow:0 0 0 1.6px var(--text-primary); }
   .cal-cell:active:not(.empty):not(.future){ transform:scale(0.9); }
+
+  .cal-cell .cal-badge{
+    position:absolute; top:-3px; right:-3px;
+    background:var(--bg); color:var(--text-primary);
+    font-size:9px; font-weight:800;
+    padding:1px 3px; border-radius:5px;
+    line-height:1; pointer-events:none;
+    box-shadow:0 0 0 1.5px var(--bg);
+  }
+  :root[data-theme="light"] .cal-cell .cal-badge{ background:#fff; color:#0a0a0a; }
+  .cal-cell.today .cal-badge{ background:var(--text-primary); color:var(--bg); }
 
   .switch{
     position:relative; display:inline-block;
@@ -502,6 +538,12 @@
     color:var(--danger); border-color:var(--danger-border); background:var(--danger-bg);
     flex:none; padding:11px 14px;
   }
+  .footer-btn.primary{
+    color:var(--accent);
+    border-color:var(--accent-border);
+    background:var(--accent-soft);
+  }
+  .footer-btn.primary:active{ background:rgba(255,90,31,0.18); }
   .footer-btn.loading{ opacity:0.6; pointer-events:none; }
   .footer-btn.success{ color:var(--ok); border-color:var(--ok-border); background:var(--ok-bg); }
   input[type=file]{ display:none; }
@@ -518,7 +560,12 @@
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
 
-  .hint{ text-align:center; font-size:11px; color:var(--text-muted); margin-top:var(--s4); }
+  .app-footer{
+    text-align:center; font-size:11px;
+    color:var(--text-muted);
+    padding:24px 0 4px;
+    letter-spacing:0.02em;
+  }
   .loading{ text-align:center; color:var(--text-muted); font-size:13px; padding:60px 0; }
 
   .sheet-backdrop{
@@ -628,7 +675,6 @@
     font-size:9.5px; color:var(--text-muted); font-weight:600;
     padding-right:6px;
   }
-  /* input editável de peso que substitui o step-value */
   .step-value.input{
     background:none; border:none;
     color:var(--text-primary);
@@ -741,6 +787,53 @@
     background:var(--surface);
     color:var(--text-primary);
     box-shadow:0 1px 3px rgba(0,0,0,0.15);
+  }
+
+  .sheet-day-sessions{
+    display:flex; flex-direction:column; gap:8px;
+    margin-bottom:14px;
+  }
+  .sheet-day-session{
+    display:flex; align-items:center; gap:10px;
+    padding:12px; border-radius:var(--r-md);
+    background:var(--surface-2); border:1px solid var(--card-border);
+    text-align:left; -webkit-appearance:none; width:100%;
+    border:none;
+  }
+  .sheet-day-session:active{ background:var(--surface-3); }
+  .sheet-day-session .sds-chip{
+    width:32px;height:32px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800; font-size:13px; flex-shrink:0;
+  }
+  .sheet-day-session .sds-info{ flex:1; min-width:0; }
+  .sheet-day-session .sds-name{ font-size:13.5px; font-weight:700; }
+  .sheet-day-session .sds-meta{ font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .sheet-day-session .sds-del{
+    width:28px;height:28px;border-radius:50%;
+    background:transparent; border:none; color:var(--text-muted);
+    display:flex;align-items:center;justify-content:center;
+    -webkit-appearance:none; flex-shrink:0;
+  }
+  .sheet-day-session .sds-del:active{ background:var(--danger-bg); color:var(--danger); }
+
+  .sheet-picker{
+    display:flex; flex-direction:column; gap:8px; margin-bottom:14px;
+  }
+  .sheet-picker-item{
+    display:flex; align-items:center; gap:10px;
+    padding:14px; border-radius:var(--r-md);
+    background:var(--surface-2); border:1px solid var(--card-border);
+    text-align:left; -webkit-appearance:none; width:100%;
+  }
+  .sheet-picker-item:active{ background:var(--surface-3); }
+  .sheet-picker-item .spi-chip{
+    width:34px;height:34px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800; font-size:14px; flex-shrink:0;
+  }
+  .sheet-picker-item .spi-name{
+    font-size:14px; font-weight:700; flex:1; min-width:0;
   }
 
   .hidden{ display:none !important; }

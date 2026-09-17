@@ -1,5 +1,6 @@
 const STORAGE_KEY = "gym-data";
 const THEME_KEY = "gym-theme";
+const APP_VERSION = "v2.0";
 const PALETTE = ["#ff5a1f", "#3d9dff", "#30d158", "#ffd60a", "#bf5af2", "#64d2ff"];
 const REST_COLOR = "#5b5b5b";
 const WEEKDAY_FULL = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
@@ -30,8 +31,7 @@ const ICONS = {
   cardio: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>`,
   refresh: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>`,
   play: `<svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7Z"/></svg>`,
-  pause: `<svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>`,
-  end: `<svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>`
+  pause: `<svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>`
 };
 
 function pad(n){ return String(n).padStart(2,"0"); }
@@ -81,6 +81,7 @@ function fmtClock(totalSec){
   return pad(m) + ":" + pad(sec);
 }
 function isCardio(ex){ return ex && ex.type === "cardio"; }
+function newSessionId(){ return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
 function getThemePref(){
   try {
@@ -114,13 +115,12 @@ let state = {
     C: { name: "Treino C", exercises: [] }
   },
   sessions: {},
-  // sessão ativa (cronômetro)
   activeSession: {
-    letter: null,       // qual treino está em andamento
-    state: "idle",      // "idle" | "running" | "paused"
-    elapsedMs: 0,       // acumulado em pausas anteriores
-    startedAt: null,    // timestamp do último start (null se pausado)
-    startedDate: null   // dateKey em que foi iniciado
+    letter: null,
+    state: "idle",
+    elapsedMs: 0,
+    startedAt: null,
+    startedDate: null
   },
   settings: {
     reminder: { enabled: false, time: "18:00", lastNotifiedDate: null },
@@ -184,7 +184,26 @@ function migrateSessionEntry(entry){
 function migrateSessions(s){
   if(!s.sessions) { s.sessions = {}; return; }
   Object.keys(s.sessions).forEach(k => {
-    s.sessions[k] = migrateSessionEntry(s.sessions[k]);
+    const v = s.sessions[k];
+    if(Array.isArray(v)){
+      v.forEach(sess => {
+        if(sess && !sess.id) sess.id = newSessionId();
+        if(sess && !sess.log) sess.log = {};
+        Object.keys(sess.log || {}).forEach(exId => {
+          if(!Array.isArray(sess.log[exId])) sess.log[exId] = [];
+        });
+      });
+      return;
+    }
+    const migrated = migrateSessionEntry(v);
+    const session = {
+      id: newSessionId(),
+      letter: migrated?.letter || null,
+      log: migrated?.log || {},
+      startedAt: migrated?.startedAt || null,
+      endedAt: migrated?.endedAt || null
+    };
+    s.sessions[k] = [session];
   });
 }
 function migrateSettings(s){
@@ -314,21 +333,33 @@ function workoutLabel(key){
   return w.isRest ? "descanso" : `Treino ${key}`;
 }
 
+function sessionsFor(dateKey){
+  const v = state.sessions[dateKey];
+  if(!v) return [];
+  if(Array.isArray(v)) return v;
+  return [v];
+}
+function firstSessionFor(dateKey){ return sessionsFor(dateKey)[0] || null; }
+
 function sessionLetter(key){
-  const e = state.sessions[key];
-  if(!e) return null;
-  return typeof e === "string" ? e : e.letter;
+  const first = firstSessionFor(key);
+  return first ? (first.letter || null) : null;
 }
 function sessionLog(key){
-  const e = state.sessions[key];
-  if(!e || typeof e === "string") return {};
-  return e.log || {};
+  const first = firstSessionFor(key);
+  return first ? (first.log || {}) : {};
 }
 function lastSessionEntry(){
   const keys = Object.keys(state.sessions).sort();
   if(keys.length === 0) return null;
-  const lastDate = keys[keys.length - 1];
-  return { date: lastDate, letter: sessionLetter(lastDate) };
+  for(let i = keys.length - 1; i >= 0; i--){
+    const arr = sessionsFor(keys[i]);
+    if(arr.length){
+      const last = arr[arr.length - 1];
+      return { date: keys[i], letter: last.letter };
+    }
+  }
+  return null;
 }
 function nextWorkoutLetter(){
   const last = lastSessionEntry();
@@ -349,7 +380,12 @@ function computeStreak(){
   }
   return streak;
 }
-function totalSessions(){ return Object.keys(state.sessions).length; }
+function totalSessions(){
+  let n = 0;
+  Object.keys(state.sessions).forEach(k => n += sessionsFor(k).length);
+  return n;
+}
+function totalDays(){ return Object.keys(state.sessions).length; }
 function sessionsThisWeek(){
   const now = new Date();
   const day = now.getDay();
@@ -361,7 +397,7 @@ function sessionsThisWeek(){
   for(const key of Object.keys(state.sessions)){
     const [y,m,d] = key.split("-").map(Number);
     const dt = new Date(y, m-1, d);
-    if(dt >= start) c++;
+    if(dt >= start) c += sessionsFor(key).length;
   }
   return c;
 }
@@ -377,11 +413,13 @@ function findExercise(exId){
 function lastLoggedValue(exId, beforeKey){
   const keys = Object.keys(state.sessions).filter(k => k < beforeKey).sort();
   for(let i = keys.length - 1; i >= 0; i--){
-    const log = sessionLog(keys[i]);
-    const sets = log && log[exId];
-    if(Array.isArray(sets) && sets.length){
-      const last = sets[sets.length - 1];
-      if(last && (last.weight != null || last.reps != null || last.minutes != null)) return last;
+    const arr = sessionsFor(keys[i]);
+    for(let j = arr.length - 1; j >= 0; j--){
+      const sets = arr[j].log && arr[j].log[exId];
+      if(Array.isArray(sets) && sets.length){
+        const last = sets[sets.length - 1];
+        if(last && (last.weight != null || last.reps != null || last.minutes != null)) return last;
+      }
     }
   }
   return null;
@@ -390,26 +428,34 @@ function lastLoggedValue(exId, beforeKey){
 function exerciseHistory(exId){
   const ex = findExercise(exId);
   const cardio = isCardio(ex);
-  return Object.keys(state.sessions).sort().map(k => {
-    const log = sessionLog(k);
-    const sets = log && log[exId];
-    if(!Array.isArray(sets) || sets.length === 0) return null;
-
+  const out = [];
+  Object.keys(state.sessions).sort().forEach(k => {
+    const arr = sessionsFor(k);
+    const allSets = [];
+    arr.forEach(sess => {
+      const sets = sess.log && sess.log[exId];
+      if(Array.isArray(sets)) allSets.push(...sets);
+    });
+    if(allSets.length === 0) return;
     if(cardio){
-      const minutes = sets.map(s => s.minutes).filter(v => v != null && !isNaN(v));
-      if(minutes.length === 0) return null;
-      const totalMin = minutes.reduce((a,b) => a+b, 0);
-      const maxMin = Math.max(...minutes);
-      return { date: k, minutes: maxMin, totalMinutes: totalMin, reps: null, weight: null };
+      const minutes = allSets.map(s => s.minutes).filter(v => v != null && !isNaN(v));
+      if(minutes.length === 0) return;
+      out.push({
+        date: k,
+        minutes: Math.max(...minutes),
+        totalMinutes: minutes.reduce((a,b) => a+b, 0),
+        weight: null, reps: null
+      });
+      return;
     }
-
-    const weights = sets.map(s => s.weight).filter(w => w != null);
-    const reps = sets.map(s => s.reps).filter(r => r != null);
+    const weights = allSets.map(s => s.weight).filter(w => w != null);
+    const reps = allSets.map(s => s.reps).filter(r => r != null);
     const maxWeight = weights.length ? Math.max(...weights) : null;
     const totalReps = reps.length ? reps.reduce((a,b) => a+b, 0) : null;
-    if(maxWeight == null && totalReps == null) return null;
-    return { date: k, weight: maxWeight, reps: totalReps };
-  }).filter(Boolean);
+    if(maxWeight == null && totalReps == null) return;
+    out.push({ date: k, weight: maxWeight, reps: totalReps });
+  });
+  return out;
 }
 
 function daysSince(iso){
@@ -418,11 +464,20 @@ function daysSince(iso){
   if(isNaN(then)) return Infinity;
   return (Date.now() - then) / (1000*60*60*24);
 }
-function sessionDuration(session){
+function sessionDurationMs(session){
   if(!session || !session.startedAt || !session.endedAt) return null;
   const ms = session.endedAt - session.startedAt;
   if(ms <= 0) return null;
   return ms;
+}
+function totalDurationForDay(dateKey){
+  const arr = sessionsFor(dateKey);
+  let total = 0;
+  arr.forEach(s => {
+    const ms = sessionDurationMs(s);
+    if(ms) total += ms;
+  });
+  return total > 0 ? total : null;
 }
 function restForExercise(exId){
   const ex = findExercise(exId);
@@ -433,7 +488,6 @@ function restForExercise(exId){
   return state.settings.restDuration || 90;
 }
 
-// ---------- cronômetro ativo ----------
 function activeElapsedMs(){
   const a = state.activeSession;
   if(!a) return 0;
@@ -443,17 +497,9 @@ function activeElapsedMs(){
   }
   return base;
 }
-function activeStateLabel(){
-  const a = state.activeSession;
-  if(!a || a.state === "idle") return "idle";
-  return a.state;
-}
 function startActiveSession(letter){
   const a = state.activeSession;
-  if(!letter){
-    showToast("Sem treino para iniciar");
-    return;
-  }
+  if(!letter){ showToast("Sem treino para iniciar"); return; }
   if(a.state === "idle"){
     a.letter = letter;
     a.elapsedMs = 0;
@@ -486,16 +532,22 @@ function endActiveSession(){
   const letter = a.letter;
   const totalMs = activeElapsedMs();
   const dateKey = a.startedDate || todayKey();
-  // grava como sessão do dia
-  const existing = state.sessions[dateKey];
-  const existingLog = existing ? sessionLog(dateKey) : {};
-  const startedAt = (existing?.startedAt) || (Date.now() - totalMs);
-  state.sessions[dateKey] = {
-    letter: letter,
-    log: existingLog,
-    startedAt: startedAt,
-    endedAt: Date.now()
-  };
+  const arr = sessionsFor(dateKey).slice();
+  let target = arr.find(s => s.letter === letter && !s.endedAt);
+  const now = Date.now();
+  if(target){
+    target.endedAt = now;
+    if(!target.startedAt) target.startedAt = now - totalMs;
+  } else {
+    arr.push({
+      id: newSessionId(),
+      letter,
+      log: {},
+      startedAt: now - totalMs,
+      endedAt: now
+    });
+  }
+  state.sessions[dateKey] = arr;
   a.state = "idle";
   a.letter = null;
   a.elapsedMs = 0;
@@ -505,6 +557,19 @@ function endActiveSession(){
   render();
   persist();
   showToast(`${workoutLabel(letter)[0].toUpperCase()}${workoutLabel(letter).slice(1)} finalizado · ${fmtDuration(totalMs)}`);
+}
+function cancelActiveSession(){
+  const a = state.activeSession;
+  if(!a || a.state === "idle") return;
+  a.state = "idle";
+  a.letter = null;
+  a.elapsedMs = 0;
+  a.startedAt = null;
+  a.startedDate = null;
+  haptic([15, 30, 15]);
+  render();
+  persist();
+  showToast("Treino cancelado");
 }
 
 function renderHeroClock(){
@@ -518,7 +583,6 @@ function renderHeroClock(){
   }
   el.classList.remove("hidden");
   el.classList.toggle("paused", a.state === "paused");
-  el.classList.toggle("ended", a.state === "ended");
   const ms = activeElapsedMs();
   timeEl.textContent = fmtClock(Math.floor(ms / 1000));
 }
@@ -530,14 +594,14 @@ function render(){
   const isRunning = a.state === "running";
   const isPaused = a.state === "paused";
   const hasActive = isRunning || isPaused;
-  const doneToday = sessionLetter(todayKey()) && !hasActive;
+  const todayArr = sessionsFor(todayKey());
+  const todayCount = todayArr.length;
   const streak = computeStreak();
   const total = totalSessions();
   const thisWeek = sessionsThisWeek();
   const now = new Date();
   const weekdayLabel = WEEKDAY_FULL[now.getDay()];
-  // treino que o hero mostra: se tem sessão ativa, é ela. Senão, o próximo (ou o de hoje, se já foi feito).
-  const heroKey = hasActive ? a.letter : (sessionLetter(todayKey()) || next);
+  const heroKey = hasActive ? a.letter : (todayCount ? todayArr[todayArr.length-1].letter : next);
   const heroW = state.workouts[heroKey] || { name: heroKey, exercises: [] };
 
   let banners = "";
@@ -548,7 +612,7 @@ function render(){
     banners += `<div class="banner info"><span>Nova versão do app disponível.</span><button id="updateBtn">atualizar</button></div>`;
   }
   const backupDays = daysSince(state.settings.lastBackupAt);
-  const backupDue = total > 0 && backupDays >= 14;
+  const backupDue = totalDays() > 0 && backupDays >= 14;
   if(backupDue){
     const daysTxt = backupDays === Infinity ? "Você ainda não exportou um backup" : `Já fazem ${Math.floor(backupDays)} dias sem backup`;
     banners += `<div class="banner info"><span>${daysTxt}.</span><button id="backupNowBtn">exportar</button></div>`;
@@ -557,22 +621,20 @@ function render(){
   let html = "";
   if(banners) html += `<div class="banners">${banners}</div>`;
 
-  const todaySession = state.sessions[todayKey()];
-  const todayDuration = sessionDuration(todaySession);
+  const todayDuration = totalDurationForDay(todayKey());
 
-  // ----- hero -----
   let eyebrowText = "Próximo";
   if(isRunning) eyebrowText = "Treinando agora";
   else if(isPaused) eyebrowText = "Pausado";
-  else if(doneToday) eyebrowText = "Treino de hoje";
+  else if(todayCount === 1) eyebrowText = "Treino de hoje";
+  else if(todayCount > 1) eyebrowText = todayCount + " treinos hoje";
 
   let statusIcon = ICONS.play;
   let statusCls = "state-idle";
   if(isRunning){ statusIcon = ICONS.play; statusCls = "state-running"; }
   else if(isPaused){ statusIcon = ICONS.pause; statusCls = "state-paused"; }
-  else if(doneToday){ statusIcon = ICONS.end; statusCls = "state-ended"; }
 
-  const heroSub = doneToday
+  const heroSub = todayCount > 0
     ? (todayDuration ? `concluído em ${fmtDuration(todayDuration)}` : "concluído hoje")
     : state.workouts[heroKey]?.isRest
       ? "dia de recuperação"
@@ -595,22 +657,18 @@ function render(){
         <span class="clock-time" id="heroClockTime">00:00</span>
       </div>
     </div>
-    ${doneToday
-      ? `<div class="control-row">
-           <button class="ctrl-btn start" id="startBtn" disabled>Start</button>
-           <button class="ctrl-btn stop" disabled>Stop</button>
-           <button class="ctrl-btn end" disabled>End</button>
-         </div>
-         <div class="hero-links">
-           <button class="undo-link" id="editTodayBtn">editar registro</button>
-           <button class="undo-link" id="undoTodayBtn">desfazer</button>
+    <div class="control-row">
+      <button class="ctrl-btn start ${isRunning ? "disabled" : ""}" id="startBtn" ${isRunning ? "disabled" : ""}>Start</button>
+      <button class="ctrl-btn stop" id="stopBtn" ${isRunning ? "" : "disabled"}>Stop</button>
+      <button class="ctrl-btn end" id="endBtn" ${hasActive ? "" : "disabled"}>End</button>
+    </div>
+    ${!hasActive && todayCount > 0
+      ? `<div class="hero-action-row">
+           <button class="hero-action edit" id="editTodayBtn">Editar</button>
+           <button class="hero-action undo" id="undoTodayBtn">Desfazer</button>
+           <button class="hero-action second" id="addSecondBtn">${ICONS.plus} Novo Treino</button>
          </div>`
-      : `<div class="control-row">
-           <button class="ctrl-btn start ${isRunning ? "disabled" : ""}" id="startBtn" ${isRunning ? "disabled" : ""}>Start</button>
-           <button class="ctrl-btn stop" id="stopBtn" ${isRunning ? "" : "disabled"}>Stop</button>
-           <button class="ctrl-btn end" id="endBtn" ${hasActive ? "" : "disabled"}>End</button>
-         </div>`
-    }
+      : ""}
   </div>`;
 
   html += `<div class="card stats-card">
@@ -743,11 +801,11 @@ function render(){
     <div class="reminder-row" style="margin-top:14px;">
       <div style="display:flex;flex-direction:column;gap:2px;">
         <span>Versão do app</span>
-        <span id="appVersionText" style="font-size:11px;color:var(--text-muted);"></span>
+        <span id="appVersionText" style="font-size:11px;color:var(--text-muted);">${APP_VERSION}</span>
       </div>
       <button class="footer-btn" id="checkUpdateBtn" style="flex:none;padding:9px 14px;">
         <span id="checkUpdateIcon">${ICONS.refresh}</span>
-        <span id="checkUpdateLabel">Verificar</span>
+        <span id="checkUpdateLabel">Atualizar</span>
       </button>
     </div>
   </div>`;
@@ -758,7 +816,7 @@ function render(){
     <button class="footer-btn" id="importBtn">${ICONS.upload} Importar</button>
   </div>
   <input type="file" id="importFile" accept="application/json">
-  <div class="hint">toque no ícone do treino para abrir as séries</div>`;
+  <div class="app-footer">William Dantas - ©2026</div>`;
 
   app.innerHTML = html;
   attachHandlers();
@@ -766,7 +824,6 @@ function render(){
   renderOverlay();
   renderRestTimer();
   renderHeroClock();
-  renderAppVersion();
   startHeroClockTicker();
 }
 
@@ -817,16 +874,19 @@ function buildMonthCalendar(monthDate){
   for(let day = 1; day <= daysInMonth; day++){
     const d = new Date(year, month, day);
     const key = dateKeyFromDate(d);
-    const letter = sessionLetter(key);
+    const arr = sessionsFor(key);
+    const count = arr.length;
+    const letter = count ? arr[arr.length - 1].letter : null;
     const isToday = key === todayKey();
     const isFuture = d > todayD;
     const style = letter ? `background:${colorFor(letter, state.order)};color:${state.workouts[letter]?.isRest ? "#f5f5f5" : "#0a0a0a"}` : "";
     const cls = "cal-cell" + (letter ? " filled" : "") + (isToday ? " today" : "") + (isFuture ? " future" : "");
-    const label = `${day} de ${MONTH_NAMES_FULL[month]}${letter ? " — " + workoutLabel(letter) : (isFuture ? "" : " — sem treino")}`;
+    const label = `${day} de ${MONTH_NAMES_FULL[month]}${count ? " — " + count + " treino(s)" : (isFuture ? "" : " — sem treino")}`;
+    const badge = count > 1 ? `<span class="cal-badge">${count}x</span>` : "";
     if(isFuture){
       cells += `<div class="${cls}" aria-label="${escapeAttr(label)}"><span>${day}</span></div>`;
     } else {
-      cells += `<button class="${cls}" style="${style}" data-role="calday" data-key="${key}" aria-label="${escapeAttr(label)}"><span>${day}</span></button>`;
+      cells += `<button class="${cls}" style="${style}" data-role="calday" data-key="${key}" aria-label="${escapeAttr(label)}"><span>${day}</span>${badge}</button>`;
     }
   }
   const totalCells = startWeekday + daysInMonth;
@@ -848,22 +908,53 @@ function buildMonthCalendar(monthDate){
   `;
 }
 
-function openDaySheet(dateKey){
-  const existing = state.sessions[dateKey];
+function openDaySheet(dateKey, opts){
+  opts = opts || {};
+  const arr = sessionsFor(dateKey);
   const a = state.activeSession;
   const hasActive = a.state === "running" || a.state === "paused";
-  const letter = existing
-    ? sessionLetter(dateKey)
-    : (hasActive && dateKey === todayKey() ? a.letter : (dateKey === todayKey() ? nextWorkoutLetter() : state.order[0]));
-  const existingLog = existing ? sessionLog(dateKey) : {};
-  const startedAt = existing?.startedAt || (hasActive && dateKey === todayKey() ? a.startedAt || Date.now() : Date.now());
+
+  let sessionId, letter, log, startedAt;
+
+  if(opts.mode === "new"){
+    sessionId = null;
+    letter = opts.letter || (hasActive && dateKey === todayKey() ? a.letter : nextWorkoutLetter());
+    log = {};
+    startedAt = Date.now();
+  } else if(opts.sessionId){
+    const sess = arr.find(s => s.id === opts.sessionId);
+    if(sess){
+      sessionId = sess.id;
+      letter = sess.letter;
+      log = JSON.parse(JSON.stringify(sess.log || {}));
+      startedAt = sess.startedAt || Date.now();
+    } else {
+      sessionId = null;
+      letter = nextWorkoutLetter();
+      log = {};
+      startedAt = Date.now();
+    }
+  } else if(arr.length){
+    const sess = arr[arr.length - 1];
+    sessionId = sess.id;
+    letter = sess.letter;
+    log = JSON.parse(JSON.stringify(sess.log || {}));
+    startedAt = sess.startedAt || Date.now();
+  } else {
+    sessionId = null;
+    letter = hasActive && dateKey === todayKey() ? a.letter : (dateKey === todayKey() ? nextWorkoutLetter() : state.order[0]);
+    log = {};
+    startedAt = Date.now();
+  }
+
   overlay = {
     type: "day",
+    mode: opts.mode || (sessionId ? "edit" : "new"),
     dateKey,
+    sessionId,
     letter,
-    log: JSON.parse(JSON.stringify(existingLog)),
-    startedAt,
-    isEditing: !!existing
+    log,
+    startedAt
   };
   renderOverlay();
 }
@@ -875,8 +966,24 @@ function openImportChoice(parsed){
   overlay = { type: "importChoice", parsed };
   renderOverlay();
 }
-function openConfirm(msg, onYes){
-  overlay = { type: "confirm", msg, onYes };
+function openConfirm(msg, onYes, opts){
+  overlay = {
+    type: "confirm",
+    msg,
+    onYes,
+    yesLabel: opts?.yesLabel,
+    noLabel: opts?.noLabel,
+    yesStyle: opts?.yesStyle,
+    onNo: opts?.onNo
+  };
+  renderOverlay();
+}
+function openWorkoutPicker(dateKey){
+  overlay = { type: "picker", dateKey };
+  renderOverlay();
+}
+function openDaySessionsSheet(dateKey){
+  overlay = { type: "daySessions", dateKey };
   renderOverlay();
 }
 function closeOverlay(){
@@ -891,6 +998,105 @@ function renderOverlay(){
   if(overlay.type === "progress") return renderProgressOverlay(root);
   if(overlay.type === "importChoice") return renderImportChoiceOverlay(root);
   if(overlay.type === "confirm") return renderConfirmOverlay(root);
+  if(overlay.type === "picker") return renderPickerOverlay(root);
+  if(overlay.type === "daySessions") return renderDaySessionsOverlay(root);
+}
+
+function renderPickerOverlay(root){
+  const { dateKey } = overlay;
+  root.innerHTML = `<div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-date">Escolher treino</div>
+      <button class="icon-btn" id="sheetClose" aria-label="fechar">${ICONS.close}</button>
+    </div>
+    <div class="sheet-picker">
+      ${state.order.map(k => {
+        const wk = state.workouts[k];
+        const isRest = wk?.isRest;
+        return `<button class="sheet-picker-item" data-role="pickletter" data-letter="${k}">
+          <div class="spi-chip" style="background:${colorFor(k,state.order)}${isRest?";color:#f5f5f5":""}">${isRest ? ICONS.moonSmall : k}</div>
+          <div class="spi-name">${escapeHtml(wk?.name || workoutLabel(k))}</div>
+        </button>`;
+      }).join("")}
+    </div>
+  </div>`;
+  document.getElementById("sheetBackdrop").addEventListener("click", closeOverlay);
+  document.getElementById("sheetClose").addEventListener("click", closeOverlay);
+  document.querySelectorAll('[data-role="pickletter"]').forEach(b => {
+    b.addEventListener("click", () => {
+      haptic(6);
+      const letter = b.dataset.letter;
+      overlay = null;
+      // inicia o novo treino com o cronômetro e abre o sheet em modo "new"
+      startActiveSession(letter);
+      openDaySheet(dateKey, { mode: "new", letter });
+    });
+  });
+}
+
+function renderDaySessionsOverlay(root){
+  const { dateKey } = overlay;
+  const arr = sessionsFor(dateKey);
+  const [y,m,dd] = dateKey.split("-").map(Number);
+  const d = new Date(y, m-1, dd);
+  const dateLabel = `${WEEKDAY_FULL[d.getDay()]}, ${dd} de ${MONTH_NAMES_FULL[m-1]}`;
+  root.innerHTML = `<div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-date" style="text-transform:capitalize;">${escapeHtml(dateLabel)}</div>
+      <button class="icon-btn" id="sheetClose" aria-label="fechar">${ICONS.close}</button>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;">${arr.length} treinos neste dia</p>
+    <div class="sheet-day-sessions">
+      ${arr.map((sess, idx) => {
+        const wk = state.workouts[sess.letter];
+        const isRest = wk?.isRest;
+        const dur = sessionDurationMs(sess);
+        const setsCount = Object.values(sess.log || {}).reduce((n, sets) => n + (Array.isArray(sets) ? sets.length : 0), 0);
+        const metaBits = [];
+        if(idx === 0) metaBits.push("1º");
+        else if(idx === 1) metaBits.push("2º");
+        else metaBits.push((idx+1) + "º");
+        if(dur) metaBits.push(fmtDuration(dur));
+        if(setsCount) metaBits.push(setsCount + " série(s)");
+        return `<div class="sheet-day-session" role="button" data-role="opensession" data-sessionid="${sess.id}">
+          <div class="sds-chip" style="background:${colorFor(sess.letter, state.order)}${isRest?";color:#f5f5f5":""}">${isRest ? ICONS.moonSmall : sess.letter}</div>
+          <div class="sds-info">
+            <div class="sds-name">${escapeHtml(wk?.name || workoutLabel(sess.letter))}</div>
+            <div class="sds-meta">${metaBits.join(" · ")}</div>
+          </div>
+          <button class="sds-del" data-role="delsession" data-sessionid="${sess.id}" aria-label="remover sessão">${ICONS.close}</button>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+  document.getElementById("sheetBackdrop").addEventListener("click", closeOverlay);
+  document.getElementById("sheetClose").addEventListener("click", closeOverlay);
+  document.querySelectorAll('[data-role="opensession"]').forEach(b => {
+    b.addEventListener("click", (ev) => {
+      if(ev.target.closest('[data-role="delsession"]')) return;
+      const sessionId = b.dataset.sessionid;
+      overlay = null;
+      openDaySheet(dateKey, { sessionId });
+    });
+  });
+  document.querySelectorAll('[data-role="delsession"]').forEach(el => {
+    el.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const sessionId = el.dataset.sessionid;
+      openConfirm("Remover esta sessão?", async () => {
+        const arr2 = sessionsFor(dateKey).filter(s => s.id !== sessionId);
+        if(arr2.length) state.sessions[dateKey] = arr2;
+        else delete state.sessions[dateKey];
+        render();
+        await persist();
+        showToast("Sessão removida");
+      });
+    });
+  });
 }
 
 function ensureSetsForExercise(log, exId, defaultSets){
@@ -912,15 +1118,18 @@ function ensureCardioSets(log, exId){
 }
 
 function renderDayOverlay(root){
-  const { dateKey, letter, log, startedAt } = overlay;
+  const { dateKey, letter, log, startedAt, mode } = overlay;
   const [y,m,dd] = dateKey.split("-").map(Number);
   const d = new Date(y, m-1, dd);
   const isToday = dateKey === todayKey();
   const dateLabel = isToday ? "Hoje" : `${WEEKDAY_FULL[d.getDay()]}, ${dd} de ${MONTH_NAMES_FULL[m-1]}`;
-  const existing = !!state.sessions[dateKey];
   const w = state.workouts[letter] || { exercises: [] };
 
-  const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+  const a = state.activeSession;
+  const hasActiveHere = (a.state === "running" || a.state === "paused") && dateKey === todayKey() && a.letter === letter;
+  const elapsed = hasActiveHere
+    ? Math.floor(activeElapsedMs() / 1000)
+    : Math.floor((Date.now() - startedAt) / 1000);
 
   let html = `<div class="sheet-backdrop" id="sheetBackdrop"></div>`;
   html += `<div class="sheet" role="dialog" aria-modal="true" aria-label="Registrar treino" id="daySheet">
@@ -929,11 +1138,12 @@ function renderDayOverlay(root){
       <div class="sheet-date">${escapeHtml(dateLabel)}</div>
       <button class="icon-btn" id="sheetClose" aria-label="fechar">${ICONS.close}</button>
     </div>
-    <div class="sheet-clock" id="sheetClock">
-      <span class="clock-icon">${ICONS.timer}</span>
-      <span class="clock-time" id="sheetClockTime">${fmtClock(elapsed)}</span>
-      <span class="clock-label">em andamento</span>
-    </div>
+    ${hasActiveHere ? `
+      <div class="sheet-clock" id="sheetClock">
+        <span class="clock-icon">${ICONS.timer}</span>
+        <span class="clock-time" id="sheetClockTime">${fmtClock(elapsed)}</span>
+        <span class="clock-label">em andamento</span>
+      </div>` : ""}
     <div class="sheet-chips">
       ${state.order.map(k => {
         const wk = state.workouts[k];
@@ -954,8 +1164,9 @@ function renderDayOverlay(root){
           </div>`)
     }
     <div class="sheet-actions">
-      <button class="cta-btn" id="sheetSave">Salvar</button>
-      ${existing ? `<button class="footer-btn danger" id="sheetRemove">${ICONS.trash} Remover registro do dia</button>` : ""}
+      ${mode === "new"
+        ? `<button class="cta-btn" id="sheetCreate">Salvar treino</button>`
+        : ""}
     </div>
   </div>`;
   root.innerHTML = html;
@@ -963,21 +1174,21 @@ function renderDayOverlay(root){
   document.getElementById("sheetBackdrop").addEventListener("click", closeOverlay);
   document.getElementById("sheetClose").addEventListener("click", closeOverlay);
 
-  if(sheetClockInterval){ clearInterval(sheetClockInterval); }
-  sheetClockInterval = setInterval(() => {
-    const el = document.getElementById("sheetClockTime");
-    if(!el){ return; }
-    const a = state.activeSession;
-    const hasActive = (a.state === "running" || a.state === "paused") && dateKey === todayKey() && a.letter === letter;
-    const sec = hasActive ? Math.floor(activeElapsedMs() / 1000) : Math.floor((Date.now() - startedAt) / 1000);
-    el.textContent = fmtClock(sec);
-  }, 1000);
+  if(sheetClockInterval){ clearInterval(sheetClockInterval); sheetClockInterval = null; }
+  const clockEl = document.getElementById("sheetClockTime");
+  if(clockEl){
+    sheetClockInterval = setInterval(() => {
+      const a2 = state.activeSession;
+      const hasActive = (a2.state === "running" || a2.state === "paused") && dateKey === todayKey() && a2.letter === letter;
+      if(!hasActive) return;
+      clockEl.textContent = fmtClock(Math.floor(activeElapsedMs() / 1000));
+    }, 1000);
+  }
 
   document.querySelectorAll('[data-role="sheetletter"]').forEach(b => {
     b.addEventListener("click", () => { haptic(6); overlay.letter = b.dataset.letter; renderOverlay(); });
   });
 
-  // step buttons (peso/reps/min) — peso agora com input editável + botões +/-
   root.querySelectorAll(".step-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       haptic(6);
@@ -992,23 +1203,25 @@ function renderDayOverlay(root){
         const cur = set.weight != null ? Number(set.weight) : 0;
         const next = Math.max(0, roundToStep(cur + (role === "wplus" ? step : -step), 0.1));
         set.weight = Math.round(next * 1000) / 1000;
+        autoSaveOverlay();
         const el = root.querySelector(`[data-field="weight"][data-exid="${exid}"][data-setidx="${setidx}"]`);
         if(el){ el.value = fmtWeight(set.weight); }
       } else if(role === "rplus" || role === "rminus"){
         const cur = set.reps != null ? Number(set.reps) : 0;
         set.reps = Math.max(0, cur + (role === "rplus" ? 1 : -1));
+        autoSaveOverlay();
         const el = root.querySelector(`[data-field="reps"][data-exid="${exid}"][data-setidx="${setidx}"]`);
         if(el){ el.textContent = set.reps; }
       } else if(role === "mplus" || role === "mminus"){
         const cur = set.minutes != null ? Number(set.minutes) : 0;
         set.minutes = Math.max(0, cur + (role === "mplus" ? 1 : -1));
+        autoSaveOverlay();
         const el = root.querySelector(`[data-field="minutes"][data-exid="${exid}"][data-setidx="${setidx}"]`);
         if(el){ el.textContent = set.minutes; }
       }
     });
   });
 
-  // input editável de peso
   root.querySelectorAll('input.step-value.input[data-field="weight"]').forEach(inp => {
     inp.addEventListener("input", () => {
       const exid = inp.dataset.exid;
@@ -1017,6 +1230,7 @@ function renderDayOverlay(root){
       if(!sets || !sets[setidx]) return;
       const parsed = parseNum(inp.value);
       sets[setidx].weight = parsed;
+      autoSaveOverlay();
     });
     inp.addEventListener("blur", () => {
       const exid = inp.dataset.exid;
@@ -1038,6 +1252,7 @@ function renderDayOverlay(root){
       set.done = !set.done;
       const row = btn.closest(".sheet-set");
       row.classList.toggle("done", set.done);
+      autoSaveOverlay();
       if(set.done){
         haptic([10,30,10]);
         startRestTimer(exid);
@@ -1055,6 +1270,7 @@ function renderDayOverlay(root){
       if(!sets) return;
       sets.splice(setidx, 1);
       haptic(6);
+      autoSaveOverlay();
       renderOverlay();
     });
   });
@@ -1072,17 +1288,61 @@ function renderDayOverlay(root){
         sets.push({ weight: last.weight ?? null, reps: last.reps ?? null, done: false });
       }
       overlay.log[exid] = sets;
+      autoSaveOverlay();
       renderOverlay();
     });
   });
 
-  document.getElementById("sheetSave").addEventListener("click", saveDaySheet);
-  const removeBtn = document.getElementById("sheetRemove");
-  if(removeBtn) removeBtn.addEventListener("click", () => {
-    openConfirm("Remover o registro deste dia?", removeDaySheetEntry);
+  const createBtn = document.getElementById("sheetCreate");
+  if(createBtn) createBtn.addEventListener("click", () => {
+    const { dateKey: dk, letter: lt, log: lg, startedAt: st, mode: md } = overlay;
+    if(md !== "new") return;
+    const arr = sessionsFor(dk).slice();
+    const cleanLog = JSON.parse(JSON.stringify(lg));
+    Object.keys(cleanLog).forEach(exId => {
+      cleanLog[exId] = (cleanLog[exId] || []).filter(s => s.minutes != null || s.weight != null || s.reps != null || s.done);
+    });
+    // reaproveita a sessão aberta criada pelo startActiveSession, se existir
+    const a3 = state.activeSession;
+    let sess = arr.find(s => s.letter === lt && !s.endedAt);
+    if(sess){
+      sess.log = cleanLog;
+    } else {
+      sess = {
+        id: newSessionId(),
+        letter: lt,
+        log: cleanLog,
+        startedAt: st,
+        endedAt: null
+      };
+      arr.push(sess);
+    }
+    state.sessions[dk] = arr;
+    haptic([10,40,10]);
+    closeOverlay();
+    render();
+    persist();
+    showToast("Séries salvas");
   });
 
   enableSheetDrag(root.querySelector("#daySheet"), root.querySelector("#sheetHandle"));
+}
+
+function autoSaveOverlay(){
+  if(!overlay || overlay.type !== "day") return;
+  if(overlay.mode === "new") return;
+  const { dateKey, sessionId, letter, log, startedAt } = overlay;
+  const arr = sessionsFor(dateKey).slice();
+  let sess = arr.find(s => s.id === sessionId);
+  if(!sess){
+    sess = { id: sessionId || newSessionId(), letter, log: {}, startedAt, endedAt: null };
+    arr.push(sess);
+  }
+  sess.letter = letter;
+  sess.log = JSON.parse(JSON.stringify(log));
+  if(!sess.startedAt) sess.startedAt = startedAt;
+  state.sessions[dateKey] = arr;
+  persist();
 }
 
 function renderStrengthRow(ex, log, dateKey){
@@ -1183,44 +1443,16 @@ function enableSheetDrag(sheetEl, handleEl){
   handleEl.addEventListener("pointercancel", end);
 }
 
-async function saveDaySheet(){
-  const { dateKey, letter, log, startedAt } = overlay;
-  Object.keys(log).forEach(exId => {
-    log[exId] = (log[exId] || []).filter(s => {
-      if(s.minutes != null || s.weight != null || s.reps != null) return true;
-      return !!s.done;
-    });
-  });
-  // preserva startedAt/endedAt se a sessão tem cronômetro ativo
-  const a = state.activeSession;
-  const hasActive = (a.state === "running" || a.state === "paused") && dateKey === todayKey() && a.letter === letter;
-  const existing = state.sessions[dateKey];
-  state.sessions[dateKey] = {
-    letter,
-    log,
-    startedAt: hasActive ? (a.startedAt || startedAt) : (existing?.startedAt || startedAt),
-    endedAt: hasActive ? null : (existing?.endedAt || Date.now())
-  };
-  haptic([10,40,10]);
-  overlay = null;
-  if(sheetClockInterval){ clearInterval(sheetClockInterval); sheetClockInterval = null; }
-  render();
-  await persist();
-  showToast("Séries salvas");
-}
-async function removeDaySheetEntry(){
-  delete state.sessions[overlay.dateKey];
-  overlay = null;
-  if(sheetClockInterval){ clearInterval(sheetClockInterval); sheetClockInterval = null; }
-  render();
-  await persist();
-  showToast("Registro removido");
-}
 async function undoToday(){
-  delete state.sessions[todayKey()];
-  // reseta sessão ativa se for a mesma
+  const dateKey = todayKey();
+  const arr = sessionsFor(dateKey);
+  if(arr.length === 0) return;
+  arr.pop();
+  if(arr.length === 0) delete state.sessions[dateKey];
+  else state.sessions[dateKey] = arr;
+
   const a = state.activeSession;
-  if(a.startedDate === todayKey() && a.state !== "idle"){
+  if(a.startedDate === dateKey && a.state !== "idle"){
     a.state = "idle"; a.letter = null; a.elapsedMs = 0; a.startedAt = null; a.startedDate = null;
   }
   render();
@@ -1363,7 +1595,10 @@ function renderProgressOverlay(root){
 }
 
 function renderConfirmOverlay(root){
-  const { msg, onYes } = overlay;
+  const { msg, onYes, yesLabel, noLabel, onNo } = overlay;
+  const yesText = yesLabel || "Confirmar";
+  const noText = noLabel || "Cancelar";
+  const yesClass = overlay.yesStyle === "accent" ? "footer-btn primary" : "footer-btn";
   root.innerHTML = `<div class="sheet-backdrop" id="sheetBackdrop"></div>
   <div class="sheet" role="dialog" aria-modal="true">
     <div class="sheet-handle"></div>
@@ -1372,13 +1607,17 @@ function renderConfirmOverlay(root){
       <button class="icon-btn" id="sheetClose" aria-label="fechar">${ICONS.close}</button>
     </div>
     <div class="sheet-actions">
-      <button class="cta-btn" id="confirmYes" style="background:var(--danger);color:#fff;">Confirmar</button>
-      <button class="footer-btn" id="confirmNo">Cancelar</button>
+      <button class="${yesClass}" id="confirmYes">${escapeHtml(yesText)}</button>
+      <button class="footer-btn" id="confirmNo">${escapeHtml(noText)}</button>
     </div>
   </div>`;
   document.getElementById("sheetBackdrop").addEventListener("click", closeOverlay);
   document.getElementById("sheetClose").addEventListener("click", closeOverlay);
-  document.getElementById("confirmNo").addEventListener("click", closeOverlay);
+  document.getElementById("confirmNo").addEventListener("click", () => {
+    overlay = null;
+    renderOverlay();
+    if(typeof onNo === "function") onNo();
+  });
   document.getElementById("confirmYes").addEventListener("click", () => {
     overlay = null;
     renderOverlay();
@@ -1398,7 +1637,7 @@ function renderImportChoiceOverlay(root){
       <button class="icon-btn" id="sheetClose" aria-label="fechar">${ICONS.close}</button>
     </div>
     <p style="font-size:13px;color:var(--text-muted);margin:0 0 18px;line-height:1.5;">
-      Este arquivo tem ${nTreinos} treino(s) e ${nSessoes} sessão(ões) registradas.
+      Este arquivo tem ${nTreinos} treino(s) e ${nSessoes} dia(s) registrado(s).
     </p>
     <div class="sheet-actions">
       <button class="cta-btn" id="importMergeBtn">Mesclar com os dados atuais</button>
@@ -1418,7 +1657,16 @@ async function mergeImportData(parsed){
   migrateSettings(parsed);
   migrateActiveSession(parsed);
   migrateWorkouts(parsed);
-  state.sessions = { ...state.sessions, ...parsed.sessions };
+  Object.keys(parsed.sessions || {}).forEach(k => {
+    const incoming = parsed.sessions[k] || [];
+    const existing = sessionsFor(k);
+    const seen = new Set(existing.map(s => s.id));
+    const merged = existing.slice();
+    incoming.forEach(s => {
+      if(!seen.has(s.id)) merged.push(s);
+    });
+    state.sessions[k] = merged;
+  });
   initExIdCounter();
   initRestCounter();
   overlay = null;
@@ -1463,27 +1711,31 @@ async function exportBackup(){
 
 function exportCsv(){
   try{
-    const rows = [["data","treino","exercicio","tipo","serie","peso_kg","reps","minutos","feito"]];
+    const rows = [["data","ordem","treino","exercicio","tipo","serie","peso_kg","reps","minutos","feito"]];
     Object.keys(state.sessions).sort().forEach(dateKey => {
-      const letter = sessionLetter(dateKey);
-      const log = sessionLog(dateKey);
-      const w = state.workouts[letter];
-      const exMap = {};
-      (w?.exercises || []).forEach(ex => exMap[ex.id] = { name: ex.name || ex.id, type: ex.type || "strength" });
-      Object.keys(log).forEach(exId => {
-        const meta = exMap[exId] || { name: exId, type: "strength" };
-        (log[exId] || []).forEach((s, i) => {
-          rows.push([
-            dateKey,
-            letter || "",
-            meta.name,
-            meta.type === "cardio" ? "cardio" : "forca",
-            String(i+1),
-            s.weight != null ? String(s.weight).replace(".", ",") : "",
-            s.reps != null ? String(s.reps) : "",
-            s.minutes != null ? String(s.minutes) : "",
-            s.done ? "1" : "0"
-          ]);
+      const arr = sessionsFor(dateKey);
+      arr.forEach((sess, sessIdx) => {
+        const letter = sess.letter;
+        const log = sess.log || {};
+        const w = state.workouts[letter];
+        const exMap = {};
+        (w?.exercises || []).forEach(ex => exMap[ex.id] = { name: ex.name || ex.id, type: ex.type || "strength" });
+        Object.keys(log).forEach(exId => {
+          const meta = exMap[exId] || { name: exId, type: "strength" };
+          (log[exId] || []).forEach((s, i) => {
+            rows.push([
+              dateKey,
+              String(sessIdx + 1),
+              letter || "",
+              meta.name,
+              meta.type === "cardio" ? "cardio" : "forca",
+              String(i+1),
+              s.weight != null ? String(s.weight).replace(".", ",") : "",
+              s.reps != null ? String(s.reps) : "",
+              s.minutes != null ? String(s.minutes) : "",
+              s.done ? "1" : "0"
+            ]);
+          });
         });
       });
     });
@@ -1506,7 +1758,7 @@ function exportCsv(){
 function checkReminder(){
   const r = state.settings.reminder;
   if(!r || !r.enabled) return;
-  if(sessionLetter(todayKey())) return;
+  if(sessionsFor(todayKey()).length) return;
   const now = new Date();
   const hhmm = pad(now.getHours()) + ":" + pad(now.getMinutes());
   if(hhmm < r.time) return;
@@ -1528,7 +1780,7 @@ function setUpdateButtonState(state){
   if(!btn || !label || !icon) return;
   btn.classList.remove("loading", "success");
   if(state === "idle"){
-    label.textContent = "Verificar";
+    label.textContent = "Atualizar";
     icon.innerHTML = ICONS.refresh;
   } else if(state === "loading"){
     label.textContent = "Verificando…";
@@ -1588,34 +1840,32 @@ async function checkForUpdate(){
   }
 }
 
-function renderAppVersion(){
-  const el = document.getElementById("appVersionText");
-  if(!el) return;
-  if("caches" in window){
-    caches.keys().then(keys => {
-      const own = keys.find(k => k.startsWith("meus-treinos-"));
-      const v = own ? own.replace("meus-treinos-", "") : "—";
-      el.textContent = `cache ${v}`;
-    }).catch(() => { el.textContent = ""; });
-  }
-}
-
 function attachHandlers(){
   const $ = (id) => document.getElementById(id);
 
   const statusBtn = $("statusBtn");
   if(statusBtn) statusBtn.addEventListener("click", () => {
     haptic(6);
-    const a = state.activeSession;
-    const key = (a.state === "running" || a.state === "paused") ? a.letter : (sessionLetter(todayKey()) || nextWorkoutLetter());
-    if(!key) return;
-    openDaySheet(todayKey());
+    const dateKey = todayKey();
+    const arr = sessionsFor(dateKey);
+    if(arr.length >= 2){
+      openDaySessionsSheet(dateKey);
+    } else {
+      openDaySheet(dateKey);
+    }
   });
 
   const startBtn = $("startBtn");
   if(startBtn && !startBtn.disabled) startBtn.addEventListener("click", () => {
     const a = state.activeSession;
-    const letter = (a.state === "running" || a.state === "paused") ? a.letter : (sessionLetter(todayKey()) || nextWorkoutLetter());
+    let letter;
+    if(a.state === "running" || a.state === "paused"){
+      letter = a.letter;
+    } else {
+      // pega a última sessão do dia se houver, senão o próximo do ciclo
+      const arr = sessionsFor(todayKey());
+      letter = arr.length ? arr[arr.length - 1].letter : nextWorkoutLetter();
+    }
     if(!letter) return;
     startActiveSession(letter);
   });
@@ -1625,14 +1875,33 @@ function attachHandlers(){
 
   const endBtn = $("endBtn");
   if(endBtn && !endBtn.disabled) endBtn.addEventListener("click", () => {
-    openConfirm("Finalizar o treino agora?", endActiveSession);
+    openConfirm("Finalizar o treino?", endActiveSession, {
+      yesLabel: "Treino Concluído",
+      noLabel: "Cancelar Treino",
+      yesStyle: "accent",
+      onNo: cancelActiveSession
+    });
   });
 
   const editTodayBtn = $("editTodayBtn");
-  if(editTodayBtn) editTodayBtn.addEventListener("click", () => openDaySheet(todayKey()));
+  if(editTodayBtn) editTodayBtn.addEventListener("click", () => {
+    const dateKey = todayKey();
+    const arr = sessionsFor(dateKey);
+    if(arr.length >= 2){
+      openDaySessionsSheet(dateKey);
+    } else {
+      openDaySheet(dateKey);
+    }
+  });
 
   const undoBtn = $("undoTodayBtn");
   if(undoBtn) undoBtn.addEventListener("click", undoToday);
+
+  const addSecondBtn = $("addSecondBtn");
+  if(addSecondBtn) addSecondBtn.addEventListener("click", () => {
+    haptic(6);
+    openWorkoutPicker(todayKey());
+  });
 
   const retryLoadBtn = $("retryLoadBtn");
   if(retryLoadBtn) retryLoadBtn.addEventListener("click", async () => {
@@ -1771,7 +2040,15 @@ function attachHandlers(){
   });
 
   document.querySelectorAll('[data-role="calday"]').forEach(el => {
-    el.addEventListener("click", () => openDaySheet(el.dataset.key));
+    el.addEventListener("click", () => {
+      const dateKey = el.dataset.key;
+      const arr = sessionsFor(dateKey);
+      if(arr.length >= 2){
+        openDaySessionsSheet(dateKey);
+      } else {
+        openDaySheet(dateKey);
+      }
+    });
   });
   const calPrevBtn = $("calPrevBtn");
   if(calPrevBtn) calPrevBtn.addEventListener("click", () => {
