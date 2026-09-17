@@ -174,37 +174,93 @@
     font-size:12px; font-weight:700; letter-spacing:0.08em;
     color:var(--text-label); margin:0 0 var(--s4); text-transform:uppercase;
   }
-  .hero-top{ display:flex; align-items:center; gap:var(--s4); margin-bottom:var(--s5); }
-  .letter-badge{
+
+  /* ---------- HERO redesenhei o topo para caber o cronômetro ---------- */
+  .hero-head{
+    display:flex; align-items:center; gap:var(--s3);
+    margin-bottom:var(--s4);
+  }
+  .hero-head .hero-info{ flex:1; min-width:0; }
+  .hero-head .workout-name{ font-size:19px; font-weight:700; margin-bottom:4px; }
+  .hero-head .workout-sub{ font-size:12.5px; color:var(--text-muted); }
+
+  /* botão de status: substitui o letter-badge */
+  .status-btn{
     width:76px;height:76px;border-radius:22px;
     display:flex;align-items:center;justify-content:center;
-    font-size:36px;font-weight:800;flex-shrink:0;
-    color:var(--accent-on);
-    transition:transform .35s var(--ease);
+    flex-shrink:0; -webkit-appearance:none; border:none;
+    color:#fff; cursor:pointer;
+    transition:transform .35s var(--ease), background .25s ease;
+    position:relative;
   }
-  .letter-badge.pulse{ animation:badgePulse .45s var(--ease); }
+  .status-btn:active{ transform:scale(0.94); }
+  .status-btn.pulse{ animation:badgePulse .45s var(--ease); }
   @keyframes badgePulse{
     0%{transform:scale(1);}
     45%{transform:scale(1.14);}
     100%{transform:scale(1);}
   }
-  .hero-info .workout-name{ font-size:19px; font-weight:700; margin-bottom:4px; }
-  .hero-info .workout-sub{ font-size:12.5px; color:var(--text-muted); }
+  .status-btn svg{ width:34px; height:34px; }
+  .status-btn.state-idle{ background:#30d158; }
+  .status-btn.state-running{ background:#30d158; }
+  .status-btn.state-paused{ background:#ff5a1f; }
+  .status-btn.state-ended{ background:#1c1c1c; border:1px solid rgba(255,255,255,0.12); }
+  :root[data-theme="light"] .status-btn.state-ended{ background:#0a0a0a; }
 
-  .cta-btn{
-    width:100%; border:none; border-radius:var(--r-lg);
-    padding:16px; font-size:15px; font-weight:700;
-    background:var(--accent); color:var(--accent-on);
+  .hero-clock{
+    display:flex; align-items:center; gap:6px;
+    padding:6px 10px;
+    background:var(--accent-soft);
+    border:1px solid var(--accent-border);
+    border-radius:var(--r-sm);
+    color:var(--accent);
+    flex-shrink:0;
+    min-width:78px;
+    justify-content:center;
+  }
+  .hero-clock.paused{
+    background:rgba(255,90,31,0.18);
+    border-color:rgba(255,90,31,0.5);
+  }
+  .hero-clock.ended{
+    background:var(--surface-3);
+    border-color:var(--card-border);
+    color:var(--text-muted);
+  }
+  .hero-clock.hidden{ display:none; }
+  .hero-clock svg{ width:14px; height:14px; }
+  .hero-clock .clock-time{
+    font-size:14px; font-weight:700;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:0.02em;
+  }
+
+  /* botões Start / Stop / End */
+  .control-row{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+    margin-bottom:var(--s3);
+  }
+  .ctrl-btn{
+    padding:14px 8px;
+    border-radius:var(--r-md);
+    font-size:14px; font-weight:700;
     -webkit-appearance:none;
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    transition:transform .12s var(--ease), opacity .12s ease;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    color:#fff;
+    transition:transform .12s var(--ease), opacity .15s ease;
+    border:none;
   }
-  .cta-btn:active{ transform:scale(0.98); }
-  .cta-btn.done{
-    background:var(--ok-bg);
-    color:var(--ok);
-    border:1px solid var(--ok-border);
-  }
+  .ctrl-btn:active{ transform:scale(0.97); }
+  .ctrl-btn:disabled{ opacity:0.35; }
+  .ctrl-btn.start{ background:#30d158; color:#fff; }
+  .ctrl-btn.start.disabled{ background:var(--surface-3); color:var(--text-muted); }
+  .ctrl-btn.stop{ background:#ff5a1f; color:#fff; }
+  .ctrl-btn.end{ background:#0a0a0a; color:#fff; border:1px solid rgba(255,255,255,0.12); }
+  :root[data-theme="light"] .ctrl-btn.end{ background:#0a0a0a; }
+
+  /* estado finalizado: substitui os botões por um "editar/desfazer" */
   .hero-links{ display:flex; justify-content:center; gap:var(--s5); margin-top:var(--s3); }
   .undo-link{
     display:block; text-align:center;
@@ -539,6 +595,15 @@
   .sheet-set.done .sheet-set-check{
     background:var(--ok); color:#0a0a0a;
   }
+  .sheet-set-remove{
+    width:24px;height:24px;border-radius:50%;
+    background:transparent; border:none; color:var(--text-muted);
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0; -webkit-appearance:none;
+    transition:all .2s ease;
+  }
+  .sheet-set-remove:active{ background:var(--danger-bg); color:var(--danger); }
+
   .step-group{
     flex:1; display:flex; align-items:center; gap:0;
     background:var(--surface-3); border:1px solid var(--card-border);
@@ -562,6 +627,21 @@
   .step-unit{
     font-size:9.5px; color:var(--text-muted); font-weight:600;
     padding-right:6px;
+  }
+  /* input editável de peso que substitui o step-value */
+  .step-value.input{
+    background:none; border:none;
+    color:var(--text-primary);
+    font-size:13px; font-weight:700;
+    text-align:center;
+    padding:0 4px;
+    width:100%;
+    min-width:0;
+    -webkit-appearance:none;
+  }
+  .step-value.input:focus{
+    outline:none;
+    color:var(--accent);
   }
   .add-set-btn{
     width:100%; background:none; border:1px dashed var(--card-border);
