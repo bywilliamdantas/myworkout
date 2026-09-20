@@ -1,6 +1,6 @@
 const STORAGE_KEY = "gym-data";
 const THEME_KEY = "gym-theme";
-const APP_VERSION = "v3.0";
+const APP_VERSION = "v3.1";
 const SCHEMA_VERSION = 3;
 const AUTOBACKUP_KEY = "gym-autobackups";
 const AUTOBACKUP_MAX = 5;
@@ -200,6 +200,7 @@ let state = {
     reminder: { enabled: false, time: "18:00", lastNotifiedDate: null },
     lastBackupAt: null,
     workoutsCollapsed: false,
+    collapsedSections: {},
     restDuration: 90,
     weekStartsMonday: false,
     restTimerActive: null,
@@ -298,6 +299,10 @@ function migrateSettings(s){
   if(s.settings.reminder.lastNotifiedDate === undefined) s.settings.reminder.lastNotifiedDate = null;
   if(s.settings.lastBackupAt === undefined) s.settings.lastBackupAt = null;
   if(s.settings.workoutsCollapsed === undefined) s.settings.workoutsCollapsed = false;
+  if(!s.settings.collapsedSections || typeof s.settings.collapsedSections !== "object" || Array.isArray(s.settings.collapsedSections)){
+    // migra o antigo "ocultar treinos" para o novo mapa por seção
+    s.settings.collapsedSections = s.settings.workoutsCollapsed ? { workouts: true } : {};
+  }
   if(s.settings.restDuration === undefined) s.settings.restDuration = 90;
   if(s.settings.weekStartsMonday === undefined) s.settings.weekStartsMonday = false;
   if(s.settings.restTimerActive === undefined) s.settings.restTimerActive = null;
@@ -998,7 +1003,23 @@ function fmtVolume(kg){
   const v = Math.round(toDisp(kg));
   return v.toLocaleString("pt-BR") + " " + unit();
 }
+/* ---------- seções ocultáveis ---------- */
+function isCollapsed(id){
+  const c = state.settings.collapsedSections;
+  return !!(c && c[id]);
+}
+function sectionHeader(id, title, first){
+  const c = isCollapsed(id);
+  return `<div class="section-title-row${first ? "" : " spaced"}">
+    <p class="section-title" style="margin:0;">${title}</p>
+    <button type="button" class="toggle-visibility-btn" data-role="togglesection" data-section="${id}" aria-expanded="${c ? "false" : "true"}" aria-label="${c ? "mostrar" : "ocultar"} ${escapeAttr(title.toLowerCase())}">
+      ${c ? ICONS.eyeOff + " Mostrar" : ICONS.eye + " Ocultar"}
+    </button>
+  </div>`;
+}
+
 function renderStatsCard(){
+  if(isCollapsed("stats")) return sectionHeader("stats", "Estatísticas");
   const st = collectStats(statsRange);
   const hasAny = st.sets > 0 || st.cardioMin > 0;
   let body;
@@ -1027,8 +1048,7 @@ function renderStatsCard(){
         <span class="vbar-label">${pad(b.start.getDate())}/${pad(b.start.getMonth() + 1)}</span>
       </div>`).join("")}</div>`;
   }
-  return `<p class="section-title" style="margin-top:24px;">Estatísticas</p>
-  <div class="card">
+  return sectionHeader("stats", "Estatísticas") + `<div class="card">
     <div class="theme-selector" style="margin-bottom:14px;">
       ${[7, 30, 90].map(d => `<button class="theme-opt ${statsRange === d ? "active" : ""}" data-role="statsrange" data-days="${d}">${d} dias</button>`).join("")}
     </div>
@@ -1036,26 +1056,37 @@ function renderStatsCard(){
   </div>`;
 }
 function collectRecords(){
-  const byName = {};
-  Object.values(state.workouts).forEach(w => (w.exercises || []).forEach(ex => {
-    if(isCardio(ex) || !ex.name) return;
-    const pr = exercisePRs(ex.id);
-    if(!pr) return;
-    const key = ex.name.trim().toLowerCase();
-    if(!byName[key] || pr.maxWeight > byName[key].pr.maxWeight) byName[key] = { ex, pr };
-  }));
-  return Object.values(byName).sort((a, b) => a.pr.maxWeightDate < b.pr.maxWeightDate ? 1 : -1).slice(0, 8);
+  // Um único exercício por treino: o que tem o recorde de carga mais recente
+  // (em empate, o de maior carga). Assim a seção fica enxuta.
+  const out = [];
+  state.order.forEach(key => {
+    const w = state.workouts[key];
+    if(!w || w.isRest) return;
+    let best = null;
+    (w.exercises || []).forEach(ex => {
+      if(isCardio(ex) || !ex.name) return;
+      const pr = exercisePRs(ex.id);
+      if(!pr) return;
+      if(!best || pr.maxWeightDate > best.pr.maxWeightDate ||
+        (pr.maxWeightDate === best.pr.maxWeightDate && pr.maxWeight > best.pr.maxWeight)){
+        best = { ex, pr, key };
+      }
+    });
+    if(best) out.push(best);
+  });
+  return out;
 }
 function renderRecordsCard(){
   const recs = collectRecords();
   if(!recs.length) return "";
-  return `<p class="section-title" style="margin-top:24px;">Recordes</p>
-  <div class="card records-card">
-    ${recs.map(({ ex, pr }) => {
+  if(isCollapsed("records")) return sectionHeader("records", "Recordes");
+  return sectionHeader("records", "Recordes") + `<div class="card records-card">
+    ${recs.map(({ ex, pr, key }) => {
       const [, m, d] = pr.maxWeightDate.split("-").map(Number);
       return `<button type="button" class="record-row" data-role="openrecord" data-exid="${ex.id}" data-name="${escapeAttr(ex.name)}">
         <span class="record-ico">${ICONS.trophy}</span>
         <span class="record-name">${escapeHtml(ex.name)}</span>
+        <span class="record-w" style="background:${colorFor(key, state.order)}">${escapeHtml(key)}</span>
         <span class="record-val">${fmtW(pr.maxWeight)} ${unit()}${pr.maxWeightReps ? " × " + pr.maxWeightReps : ""}</span>
         <span class="record-date">${d}/${m}</span>
       </button>`;
@@ -1073,6 +1104,7 @@ const BODY_MEASURES = [
 function bodySorted(){ return (state.body || []).slice().sort((a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)); }
 function newBodyId(){ return "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
 function renderBodyCard(){
+  if(isCollapsed("body")) return sectionHeader("body", "Corpo");
   const list = bodySorted();
   let inner;
   if(!list.length){
@@ -1109,8 +1141,7 @@ function renderBodyCard(){
     }).join("");
     inner = `${head}${chart}${measures ? `<div class="body-measures">${measures}</div>` : ""}<div class="progress-list" style="margin-top:10px;">${recent}</div>`;
   }
-  return `<p class="section-title" style="margin-top:24px;">Corpo</p>
-  <div class="card">
+  return sectionHeader("body", "Corpo") + `<div class="card">
     ${inner}
     <button class="add-workout-btn" id="openBodyBtn" style="margin-top:12px;">${ICONS.plus} Registrar peso / medidas</button>
   </div>`;
@@ -1299,16 +1330,9 @@ function render(){
     <div class="stat"><div class="stat-num" data-count="${total}">0</div><div class="stat-label">no mês</div></div>
   </div>`;
 
-  html += `<div class="section-title-row">
-    <p class="section-title" style="margin:0;">Meus treinos</p>
-    <button class="toggle-visibility-btn" id="toggleWorkoutsBtn" aria-label="${state.settings.workoutsCollapsed ? "mostrar treinos" : "ocultar treinos"}">
-      ${state.settings.workoutsCollapsed ? ICONS.eyeOff + " Mostrar" : ICONS.eye + " Ocultar"}
-    </button>
-  </div>`;
+  html += sectionHeader("workouts", "Meus treinos", true);
 
-  if(state.settings.workoutsCollapsed){
-    html += `<div class="card" style="text-align:center;color:var(--text-muted);font-size:12.5px;padding:22px 16px;"><p style="margin:0;line-height:1.5;">Seus treinos estão ocultos.</p></div>`;
-  } else {
+  if(!isCollapsed("workouts")){
     state.order.forEach((key, idx) => {
       const w = state.workouts[key];
       const color = colorFor(key, state.order);
@@ -1376,7 +1400,8 @@ function render(){
     </div>`;
   }
 
-  html += `<p class="section-title" style="margin-top:24px;">Histórico</p>`;
+  html += sectionHeader("history", "Histórico");
+  if(!isCollapsed("history")){
   const legendWorkouts = state.order.filter(k => !state.workouts[k]?.isRest);
   const hasRest = state.order.some(k => state.workouts[k]?.isRest);
   html += `<div class="card">
@@ -1387,14 +1412,15 @@ function render(){
     </div>
     ${buildMonthCalendar(historyMonth)}
   </div>`;
+  }
 
   html += renderStatsCard();
   html += renderRecordsCard();
   html += renderBodyCard();
 
   const r = state.settings.reminder;
-  html += `<p class="section-title" style="margin-top:24px;">Lembretes</p>
-  <div class="card">
+  html += sectionHeader("reminders", "Lembretes");
+  if(!isCollapsed("reminders")) html += `<div class="card">
     <label class="reminder-row">
       <span>Lembrete diário de treino</span>
       <span class="switch">
@@ -1409,8 +1435,8 @@ function render(){
   </div>`;
 
   const themePref = getThemePref();
-  html += `<p class="section-title" style="margin-top:24px;">Preferências</p>
-  <div class="card">
+  html += sectionHeader("prefs", "Preferências");
+  if(!isCollapsed("prefs")) html += `<div class="card">
     <div class="reminder-row" style="margin-bottom:14px;">
       <span>Tema</span>
     </div>
@@ -1458,12 +1484,19 @@ function render(){
         <span id="checkUpdateLabel">Atualizar</span>
       </button>
     </div>
+    <div class="reminder-row" style="margin-top:14px;">
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
+        <span>App não atualiza?</span>
+        <span style="font-size:11px;color:var(--text-muted);">Limpa o cache do app e recarrega. Seus treinos e histórico não são apagados.</span>
+      </div>
+      <button class="footer-btn" id="hardRefreshBtn" style="flex:none;padding:9px 14px;">Recarregar</button>
+    </div>
   </div>`;
 
   const bkDays = daysSince(state.settings.lastBackupAt);
   const bkTxt = bkDays === Infinity ? "nunca" : (bkDays < 1 ? "hoje" : `há ${Math.floor(bkDays)} dia(s)`);
-  html += `<p class="section-title" style="margin-top:24px;">Dados e backup</p>
-  <div class="card">
+  html += sectionHeader("data", "Dados e backup");
+  if(!isCollapsed("data")) html += `<div class="card">
     <div class="reminder-row">
       <span>Proteção contra limpeza do aparelho</span>
       <span class="status-pill ${storagePersisted === true ? "ok" : ""}" id="storageStatus">${storageStatusText()}</span>
@@ -1486,8 +1519,8 @@ function render(){
     <button class="footer-btn" id="exportCsvBtn">${ICONS.download} CSV</button>
     <button class="footer-btn" id="importBtn">${ICONS.upload} Importar</button>
   </div>
-  <input type="file" id="importFile" accept="application/json">
-  <div class="app-footer">William Dantas - ©2026</div>`;
+  <input type="file" id="importFile" accept="application/json">`;
+  html += `<div class="app-footer">William Dantas - ©2026</div>`;
 
   app.innerHTML = html;
   attachHandlers();
@@ -2502,62 +2535,81 @@ function stopRestTimer(){
   persist();
   renderRestTimer();
 }
-function renderRestTimer(){
-  const root = document.getElementById("restTimerRoot");
-  if(!root) return;
-  const t = state.settings.restTimerActive;
-  if(!t){ root.innerHTML = ""; if(restTimerInterval){ clearInterval(restTimerInterval); restTimerInterval = null; } return; }
-
-  const remain = Math.max(0, Math.ceil((t.endsAt - Date.now()) / 1000));
-  if(remain <= 0){
-    if(restTimerInterval){ clearInterval(restTimerInterval); restTimerInterval = null; }
-    state.settings.restTimerActive = null;
-    persist();
-    haptic([200,100,200]);
-    if(typeof Notification !== "undefined" && Notification.permission === "granted"){
-      try { new Notification("Descanso acabou", { body: "Bora pra próxima série." }); } catch(e){}
-    }
-    showToast("Descanso acabou — próxima série!");
-    root.innerHTML = "";
-    return;
+function finishRestTimer(root){
+  if(restTimerInterval){ clearInterval(restTimerInterval); restTimerInterval = null; }
+  state.settings.restTimerActive = null;
+  persist();
+  haptic([200,100,200]);
+  if(typeof Notification !== "undefined" && Notification.permission === "granted"){
+    try { new Notification("Descanso acabou", { body: "Bora pra próxima série." }); } catch(e){}
   }
-
-  const pct = remain / t.duration;
-  const C = 2 * Math.PI * 18;
-  const offset = C * (1 - pct);
-
+  showToast("Descanso acabou — próxima série!");
+  root.innerHTML = "";
+}
+function buildRestTimerDom(root, C){
   root.innerHTML = `<div class="rest-timer">
     <div class="rest-ring">
       <svg viewBox="0 0 44 44">
         <circle class="ring-bg" cx="22" cy="22" r="18"/>
-        <circle class="ring-fg" cx="22" cy="22" r="18"
-          stroke-dasharray="${C}" stroke-dashoffset="${offset}"/>
+        <circle class="ring-fg" id="restRingFg" cx="22" cy="22" r="18"
+          stroke-dasharray="${C}" stroke-dashoffset="0"/>
       </svg>
     </div>
     <div class="rest-info">
       <div class="rest-label">descanso</div>
-      <div class="rest-time" id="restTime">${pad(Math.floor(remain/60))}:${pad(remain%60)}</div>
+      <div class="rest-time" id="restTime"></div>
     </div>
     <button class="rest-btn" id="restPlus30">+30s</button>
     <button class="rest-btn primary" id="restStop">pular</button>
   </div>`;
-
   document.getElementById("restStop").addEventListener("click", () => {
     haptic(6);
     stopRestTimer();
   });
   document.getElementById("restPlus30").addEventListener("click", () => {
     haptic(6);
-    if(state.settings.restTimerActive){
-      state.settings.restTimerActive.endsAt += 30000;
-      state.settings.restTimerActive.duration += 30;
+    const t = state.settings.restTimerActive;
+    if(t){
+      t.endsAt += 30000;
+      t.duration += 30;
       persist();
       renderRestTimer();
     }
   });
+}
+// Monta o timer uma única vez e depois só atualiza texto e anel no lugar.
+// (Antes o HTML inteiro era recriado a cada segundo, o que reiniciava a
+// animação de entrada e fazia a barra inferior "piscar".)
+function renderRestTimer(){
+  const root = document.getElementById("restTimerRoot");
+  if(!root) return;
+  const t = state.settings.restTimerActive;
+  if(!t){
+    root.innerHTML = "";
+    if(restTimerInterval){ clearInterval(restTimerInterval); restTimerInterval = null; }
+    return;
+  }
+
+  const remainMs = t.endsAt - Date.now();
+  const remain = Math.max(0, Math.ceil(remainMs / 1000));
+  if(remain <= 0){ finishRestTimer(root); return; }
+
+  const C = 2 * Math.PI * 18;
+  if(!root.firstElementChild) buildRestTimerDom(root, C);
+
+  const timeEl = document.getElementById("restTime");
+  const txt = `${pad(Math.floor(remain / 60))}:${pad(remain % 60)}`;
+  if(timeEl && timeEl.textContent !== txt) timeEl.textContent = txt;
+
+  const fg = document.getElementById("restRingFg");
+  if(fg){
+    const pct = Math.min(1, Math.max(0, remainMs / (t.duration * 1000)));
+    fg.style.strokeDashoffset = String(C * (1 - pct));
+  }
 
   if(!restTimerInterval){
-    restTimerInterval = setInterval(() => renderRestTimer(), 1000);
+    // 250 ms: o número troca no instante certo e o anel avança de forma contínua
+    restTimerInterval = setInterval(renderRestTimer, 250);
   }
 }
 
@@ -2830,6 +2882,80 @@ function setUpdateButtonState(state){
   }
 }
 
+/* ---------- atualização do app ---------- */
+let updateBusy = false;
+let reloadingForUpdate = false;
+let lastBgCheck = 0;
+
+// Recarrega com um parâmetro descartável na URL: assim o navegador não reaproveita
+// cópias em cache do index.html/app.js (um simples reload() pode reaproveitar).
+function reloadOnce(){
+  if(reloadingForUpdate) return;
+  reloadingForUpdate = true;
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.set("_u", String(Date.now()));
+    window.location.replace(u.toString());
+  } catch(e){
+    window.location.reload();
+  }
+}
+// tira o parâmetro descartável da barra de endereço depois de carregar
+try {
+  const cleanUrl = new URL(window.location.href);
+  if(cleanUrl.searchParams.has("_u")){
+    cleanUrl.searchParams.delete("_u");
+    window.history.replaceState(null, "", cleanUrl.pathname + (cleanUrl.search || "") + cleanUrl.hash);
+  }
+} catch(e){}
+
+// Envia uma mensagem ao service worker e espera a resposta (ou desiste no timeout).
+function swRequest(worker, msg, timeoutMs){
+  return new Promise((resolve) => {
+    if(!worker){ resolve(null); return; }
+    const ch = new MessageChannel();
+    const timer = setTimeout(() => resolve(null), timeoutMs);
+    ch.port1.onmessage = (e) => { clearTimeout(timer); resolve(e.data); };
+    try { worker.postMessage(msg, [ch.port2]); }
+    catch(e){ clearTimeout(timer); resolve(null); }
+  });
+}
+
+// Espera um service worker que está instalando terminar (ou falhar).
+function waitInstalled(worker, timeoutMs){
+  return new Promise((resolve) => {
+    if(!worker || worker.state === "installed" || worker.state === "activated" || worker.state === "redundant"){ resolve(); return; }
+    const timer = setTimeout(resolve, timeoutMs);
+    worker.addEventListener("statechange", () => {
+      if(worker.state === "installed" || worker.state === "activated" || worker.state === "redundant"){
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+  });
+}
+
+// Ativa o service worker que está esperando; o "controllerchange" recarrega a página.
+// O timeout garante o recarregamento mesmo se o iOS não disparar o evento.
+function applyWaitingUpdate(reg){
+  if(reg && reg.waiting){
+    reg.waiting.postMessage("SKIP_WAITING");
+    setTimeout(reloadOnce, 2500);
+  } else {
+    reloadOnce();
+  }
+}
+
+// Pede ao service worker para rebaixar os arquivos do app direto do servidor
+// (ignorando qualquer cache) e diz se algo mudou em relação ao que está aberto.
+async function checkAssetsChanged(){
+  const worker = (swRegistration && swRegistration.active) || navigator.serviceWorker.controller;
+  const res = await swRequest(worker, { type: "REFRESH_ASSETS" }, 20000);
+  if(!res || !res.ok) return null;
+  const versionDiffers = !!(res.remoteVersion && res.remoteVersion !== APP_VERSION);
+  return res.changed || versionDiffers;
+}
+
 async function checkForUpdate(){
   if(!("serviceWorker" in navigator)){
     showToast("Atualização não suportada neste navegador");
@@ -2839,37 +2965,74 @@ async function checkForUpdate(){
     showToast("Serviço ainda iniciando — tente em instantes");
     return;
   }
+  if(updateBusy) return;
+  updateBusy = true;
   setUpdateButtonState("loading");
   haptic(6);
   try {
+    // 1) a versão do service worker mudou (sw.js novo)?
+    try { await swRegistration.update(); } catch(e){}
+    if(swRegistration.installing) await waitInstalled(swRegistration.installing, 15000);
     if(swRegistration.waiting){
       setUpdateButtonState("available");
-      swRegistration.waiting.postMessage("SKIP_WAITING");
+      showToast("Atualizando…");
+      applyWaitingUpdate(swRegistration);
       return;
     }
-    await swRegistration.update();
-    await new Promise(r => setTimeout(r, 1200));
-    if(swRegistration.waiting){
+    // 2) o sw.js é igual, mas index.html / app.js / ícones mudaram?
+    const changed = await checkAssetsChanged();
+    if(changed === true){
       setUpdateButtonState("available");
-      swRegistration.waiting.postMessage("SKIP_WAITING");
-    } else if(swRegistration.installing){
-      const installing = swRegistration.installing;
-      installing.addEventListener("statechange", () => {
-        if(installing.state === "installed"){
-          setUpdateButtonState("available");
-          if(swRegistration.waiting) swRegistration.waiting.postMessage("SKIP_WAITING");
-        }
-      });
-    } else {
+      showToast("Atualizando…");
+      setTimeout(reloadOnce, 500);
+      return;
+    }
+    if(changed === false){
       setUpdateButtonState("success");
       showToast("Você já está na versão mais recente");
       haptic([10, 30, 10]);
+      return;
     }
+    throw new Error("sem resposta do service worker");
   } catch(e){
     console.error("[update]", e);
     setUpdateButtonState("idle");
-    showToast("Não foi possível verificar agora");
+    showToast("Não foi possível verificar agora. Confira a conexão.");
+  } finally {
+    updateBusy = false;
   }
+}
+
+// Verificação silenciosa ao voltar para o app (no iPhone o app fica "congelado"
+// em segundo plano e não recarrega sozinho). Só mostra o aviso, nunca recarrega sozinho.
+async function backgroundUpdateCheck(){
+  if(!swRegistration || updateBusy || updateAvailable) return;
+  const now = Date.now();
+  if(now - lastBgCheck < 3 * 60 * 1000) return;
+  lastBgCheck = now;
+  try { await swRegistration.update(); } catch(e){ return; }
+  if(swRegistration.waiting || swRegistration.installing) return; // os listeners mostram o aviso
+  const changed = await checkAssetsChanged();
+  if(changed === true && !updateAvailable){
+    updateAvailable = { reload: true };
+    render();
+  }
+}
+
+// Última alternativa: apaga o cache e o service worker e recarrega.
+// NÃO mexe nos seus treinos/histórico (ficam no localStorage).
+async function hardRefreshApp(){
+  try {
+    if("serviceWorker" in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    if(window.caches){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch(e){ console.error("[hardRefresh]", e); }
+  reloadOnce();
 }
 
 function attachHandlers(){
@@ -2944,19 +3107,29 @@ function attachHandlers(){
 
   const updateBtn = $("updateBtn");
   if(updateBtn) updateBtn.addEventListener("click", () => {
-    if(updateAvailable && updateAvailable.waiting){
-      updateAvailable.waiting.postMessage("SKIP_WAITING");
-    }
+    if(!updateAvailable) return;
+    haptic(6);
+    showToast("Atualizando…");
+    applyWaitingUpdate(updateAvailable.waiting ? updateAvailable : null);
   });
 
   const backupNowBtn = $("backupNowBtn");
   if(backupNowBtn) backupNowBtn.addEventListener("click", exportBackup);
 
-  const toggleWorkoutsBtn = $("toggleWorkoutsBtn");
-  if(toggleWorkoutsBtn) toggleWorkoutsBtn.addEventListener("click", async () => {
-    state.settings.workoutsCollapsed = !state.settings.workoutsCollapsed;
-    render();
-    await persist();
+  document.querySelectorAll('[data-role="togglesection"]').forEach(el => {
+    el.addEventListener("click", async () => {
+      const id = el.dataset.section;
+      haptic(6);
+      const before = el.getBoundingClientRect().top;
+      if(!state.settings.collapsedSections) state.settings.collapsedSections = {};
+      if(state.settings.collapsedSections[id]) delete state.settings.collapsedSections[id];
+      else state.settings.collapsedSections[id] = true;
+      render();
+      // mantém o cabeçalho tocado no mesmo lugar da tela, sem "pulo"
+      const again = document.querySelector(`[data-role="togglesection"][data-section="${id}"]`);
+      if(again) window.scrollBy(0, again.getBoundingClientRect().top - before);
+      await persist();
+    });
   });
 
   document.querySelectorAll('[data-role="wname"]').forEach(el => {
@@ -3216,6 +3389,10 @@ function attachHandlers(){
 
   const checkUpdateBtn = $("checkUpdateBtn");
   if(checkUpdateBtn) checkUpdateBtn.addEventListener("click", checkForUpdate);
+  const hardRefreshBtn = $("hardRefreshBtn");
+  if(hardRefreshBtn) hardRefreshBtn.addEventListener("click", () => {
+    openConfirm("Limpar o cache do app e recarregar? Seus treinos e histórico continuam salvos.", hardRefreshApp, { yesLabel: "Recarregar", yesStyle: "accent" });
+  });
 
   const exportBtn = $("exportBtn");
   if(exportBtn) exportBtn.addEventListener("click", exportBackup);
@@ -3326,6 +3503,7 @@ function nextAvailableLetter(){
       renderRestTimer();
       renderHeroClock();
       syncWakeLock();
+      backgroundUpdateCheck();
     }
   });
   setInterval(checkReminder, 5 * 60 * 1000);
@@ -3344,7 +3522,8 @@ function nextAvailableLetter(){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async () => {
     try{
-      const reg = await navigator.serviceWorker.register("sw.js");
+      // updateViaCache:"none" → o navegador nunca usa cache HTTP ao checar o sw.js
+      const reg = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
       swRegistration = reg;
       if(reg.waiting && navigator.serviceWorker.controller){
         updateAvailable = reg;
@@ -3365,12 +3544,8 @@ if("serviceWorker" in navigator){
         btn.dataset.bound = "1";
         btn.addEventListener("click", checkForUpdate);
       }
+      setTimeout(backgroundUpdateCheck, 2500);
     }catch(e){}
   });
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if(refreshing) return;
-    refreshing = true;
-    window.location.reload();
-  });
+  navigator.serviceWorker.addEventListener("controllerchange", reloadOnce);
 }

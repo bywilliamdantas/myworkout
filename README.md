@@ -25,6 +25,13 @@ do app de vez em quando para não perder o histórico caso troque de aparelho.
 
 ## Novidades desta versão
 
+**Rodada 5 (v3.1)**
+- **Timer de descanso sem piscar**: a barra é montada uma vez e só o número e o anel são atualizados no lugar (antes o HTML era recriado a cada segundo, o que reiniciava a animação). O anel agora avança de forma contínua.
+- **Botão Atualizar mais robusto**: além de checar uma versão nova do `sw.js`, agora baixa `index.html`, `app.js`, `manifest.json` e ícones direto do servidor (ignorando cache), compara com o que está salvo e recarrega se algo mudou. Também funciona quando só o `app.js`/`index.html` foi alterado. O app verifica sozinho ao voltar para ele e mostra o aviso "Nova versão disponível". Em Preferências há também **"Recarregar do zero"** (limpa só o cache do app; treinos e histórico não são apagados).
+- **Service worker "rede primeiro"**: a cada abertura os arquivos são revalidados no servidor; o cache só serve de reserva offline.
+- **Ocultar em todas as seções**: Meus treinos, Histórico, Estatísticas, Recordes, Corpo, Lembretes, Preferências e Dados e backup têm o botão Ocultar/Mostrar. Ao ocultar, sobra só o título da seção. A escolha fica salva.
+- **Recordes enxutos**: um exercício por treino (o que bateu recorde de carga mais recentemente), com a letra do treino ao lado.
+
 **Rodada 4**
 - **Timer de descanso** entre séries (60/90/120s configurável por exercício), com vibração no fim. Não dispara em exercícios marcados como superset.
 - **Tela sempre ligada** durante o treino (Wake Lock), com opção para desativar em Preferências.
@@ -154,4 +161,14 @@ O ícone aparece na tela inicial e abre em tela cheia, como um app nativo.
 
 Edite os arquivos direto pelo GitHub (ícone de lápis em cada arquivo) ou
 suba versões novas pela mesma tela de upload. O GitHub Pages republica em
-cerca de 1 minuto.
+cerca de 1 minuto. Depois, abra o app no iPhone e toque em **Preferências →
+Atualizar** (ou espere o aviso "Nova versão disponível").
+
+A cada versão nova, troque o número em dois lugares (o mesmo nos dois):
+`CACHE_NAME` no `sw.js` e `APP_VERSION` no `app.js`. Não é obrigatório para o
+botão Atualizar funcionar, mas deixa a versão mostrada no app correta.
+
+**Ícone da tela de início:** o iOS guarda o ícone no momento em que o atalho é
+criado e não permite que o app o troque depois. Se você mudar os arquivos em
+`icons/`, o novo ícone só aparece ao **remover o atalho e adicioná-lo de novo**
+pelo Safari (seus dados ficam no aparelho; faça um backup antes por garantia).
