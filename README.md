@@ -25,6 +25,23 @@ do app de vez em quando para não perder o histórico caso troque de aparelho.
 
 ## Novidades desta versão
 
+**Rodada 4**
+- **Timer de descanso** entre séries (60/90/120s configurável por exercício), com vibração no fim. Não dispara em exercícios marcados como superset.
+- **Tela sempre ligada** durante o treino (Wake Lock), com opção para desativar em Preferências.
+- **Sugestão de progressão**: ao abrir um exercício, mostra "Sugestão: 65 kg × 10" com base na última vez, e um botão para aplicar direto nas séries.
+- **Recordes pessoais (PR)**: selo de troféu quando você bate a maior carga ou o maior 1RM estimado, com uma seção "Recordes" listando os principais.
+- **Notas e RPE**: campo de observação por exercício e por treino, e RPE (1–10) opcional por exercício.
+- **Tipos de série**: aquecimento, drop set e até a falha (toque no número da série para alternar). Aquecimento fica fora das estatísticas de volume e recordes.
+- **Estatísticas**: volume total, séries por grupo muscular e volume por semana (7/30/90 dias).
+- **Peso corporal e medidas** (cintura, peito, braço, coxa) com gráfico de evolução.
+- **Backups automáticos** dentro do aparelho (últimas 5 cópias diárias), com tela para restaurar qualquer uma.
+- **Exportar/importar mais seguros**: exportar agora tenta abrir a folha de compartilhamento do iPhone (salvar direto no iCloud); importar valida o arquivo antes de aplicar e recusa backups corrompidos ou de versão futura.
+- **Desfazer** em exclusões de exercício, treino e sessão (toast com botão "Desfazer").
+- **Duplicar treino**, **reordenar exercícios**, **superset** (agrupar dois exercícios) e **link** de vídeo/técnica por exercício.
+- **Unidade kg/lb** configurável.
+- Correção: marcar uma série com ✓ agora grava de fato o peso/reps que já apareciam pré-preenchidos na tela (antes podiam ficar em branco).
+- Telas de abertura (splash screens) do iOS.
+
 **Rodada 3.1**
 - **Biblioteca de exercícios embutida**: a lista de exercícios do seletor
   agora já vem pré-carregada com mais de 300 exercícios organizados em 21
