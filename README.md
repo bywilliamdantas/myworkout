@@ -25,6 +25,35 @@ do app de vez em quando para não perder o histórico caso troque de aparelho.
 
 ## Novidades desta versão
 
+**Rodada 3.1**
+- **Biblioteca de exercícios embutida**: a lista de exercícios do seletor
+  agora já vem pré-carregada com mais de 300 exercícios organizados em 21
+  grupos musculares (Quadríceps, Glúteos, Peitoral, Costas, Bíceps,
+  Tríceps, etc.), então dá pra montar um treino sem digitar nada. Os
+  grupos aparecem retráteis (toque para abrir/fechar); ao digitar na
+  busca, o filtro passa a mostrar todos os exercícios que combinam, de
+  qualquer grupo, numa lista só. Exercícios digitados manualmente que não
+  estão na biblioteca continuam aparecendo no topo, em "Meus exercícios".
+
+**Rodada 3**
+- **Tela de iniciar treino**: não é mais possível adicionar ou remover séries
+  durante o treino (a quantidade de séries é a configurada no exercício,
+  em "Meus treinos"). As únicas coisas editáveis ali são peso e
+  repetições — e agora as repetições também podem ser digitadas
+  diretamente (igual ao peso), além dos botões de +/-.
+- **Estatística "no mês"**: o card que antes mostrava a soma de todas as
+  sessões já feitas (desde sempre) agora mostra apenas as sessões do mês
+  atual, reiniciando a cada mês novo. "Dias seguidos" e "essa semana"
+  continuam como antes.
+- **Lista de exercícios em vez de digitar**: ao tocar em "Adicionar
+  exercício" dentro de um treino, abre uma lista com todos os nomes de
+  exercícios já usados em qualquer treino, com busca (filtra por qualquer
+  trecho do nome) e checkboxes — dá pra marcar vários de uma vez e todos
+  entram automaticamente como exercícios do treino. Se o nome ainda não
+  existir, dá pra digitar um novo e marcá-lo também. Para renomear um
+  exercício já existente, toque no nome dele para abrir a mesma lista
+  (aqui é só tocar em um item para escolher).
+
 **Rodada 1**
 - Registro de carga e reps ao marcar um treino (ou editar um dia do
   histórico), com o último valor usado como referência.

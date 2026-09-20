@@ -1,7 +1,31 @@
 const STORAGE_KEY = "gym-data";
 const THEME_KEY = "gym-theme";
-const APP_VERSION = "v2.0";
+const APP_VERSION = "v2.2";
 const PALETTE = ["#ff5a1f", "#3d9dff", "#30d158", "#ffd60a", "#bf5af2", "#64d2ff"];
+
+const EXERCISE_LIBRARY = {
+  "Quadríceps": ["Agachamento livre","Agachamento frontal","Agachamento com barra alta","Agachamento com barra baixa","Agachamento sumô","Agachamento com halteres","Agachamento goblet","Agachamento búlgaro","Agachamento unilateral","Agachamento com calcanhar elevado","Agachamento Zercher","Agachamento Hack com barra","Step-up com halteres","Afundo com barra","Afundo com halteres","Afundo reverso","Afundo caminhando","Afundo búlgaro","Sissy squat","Pistol squat","Leg Press 45°","Leg Press horizontal","Leg Press vertical","Hack Squat","Agachamento Smith","Agachamento pendular","Agachamento V-Squat","Cadeira extensora","Belt Squat","Máquina de agachamento unilateral","Agachamento no cabo","Afundo no cabo","Agachamento unilateral no cabo","Step-up no cabo"],
+  "Glúteos": ["Hip Thrust com barra","Hip Thrust com halteres","Glute Bridge com barra","Glute Bridge com halteres","Afundo búlgaro","Afundo reverso","Afundo caminhando","Step-up","Step-up alto","Agachamento sumô","Agachamento profundo","Levantamento terra sumô","Levantamento terra romeno","Good Morning","Swing com kettlebell","Hip Thrust máquina","Glute Drive","Máquina de extensão de quadril","Glúteo no cabo/máquina","Abdução de quadril","Máquina de coice","Coice no cabo","Extensão de quadril no cabo","Abdução no cabo","Adução no cabo","Pull-through"],
+  "Posteriores de coxa": ["Stiff com barra","Stiff com halteres","Levantamento terra romeno","Levantamento terra","Levantamento terra sumô","Good Morning","Nordic Curl","Glute Ham Raise","Flexão nórdica assistida","Mesa flexora","Cadeira flexora","Flexora unilateral","Flexora vertical","Glute Ham Developer","Máquina de posterior","Flexão de joelho no cabo","Flexão de joelho unilateral no cabo","Pull-through"],
+  "Adutores": ["Adução na máquina","Adução no cabo","Adução com faixa","Adução lateral no cabo","Agachamento sumô","Levantamento terra sumô","Copenhagen plank","Adução com bola"],
+  "Abdutores": ["Abdução na máquina","Abdução no cabo","Abdução com faixa elástica","Abdução deitada","Caminhada lateral com faixa","Monster walk","Fire Hydrant"],
+  "Panturrilhas": ["Elevação de panturrilha em pé com barra","Elevação de panturrilha em pé com halteres","Elevação unilateral","Panturrilha no Smith","Panturrilha no degrau","Panturrilha donkey","Panturrilha com kettlebell","Panturrilha em pé","Panturrilha sentada","Panturrilha no Leg Press","Panturrilha no Hack","Panturrilha horizontal","Panturrilha no cabo","Panturrilha unilateral no cabo"],
+  "Peitoral": ["Supino reto com barra","Supino reto com halteres","Supino inclinado com barra","Supino inclinado com halteres","Supino declinado com barra","Supino declinado com halteres","Supino unilateral com halter","Floor Press","Floor Press com halteres","Squeeze Press","Pullover com halter","Chest Press","Chest Press inclinado","Chest Press declinado","Supino convergente","Supino horizontal","Supino unilateral máquina","Crossover alto","Crossover médio","Crossover baixo","Crossover unilateral","Crucifixo no cabo","Crucifixo unilateral","Press no cabo"],
+  "Peitoral superior": ["Supino inclinado com barra","Supino inclinado com halteres","Supino inclinado Smith","Supino inclinado máquina","Supino inclinado unilateral","Crucifixo inclinado com halteres","Crucifixo inclinado no cabo","Crossover de baixo para cima","Squeeze Press inclinado"],
+  "Peitoral inferior": ["Supino declinado","Supino declinado com halteres","Supino declinado máquina","Crossover de cima para baixo","Paralelas com inclinação do tronco","Crucifixo declinado"],
+  "Costas / Dorsal": ["Barra fixa pronada","Barra fixa supinada","Barra fixa neutra","Barra fixa aberta","Barra fixa fechada","Barra fixa unilateral","Remada curvada com barra","Remada curvada supinada","Remada Pendlay","Remada cavalinho","Remada unilateral com halter","Remada serrote","Remada com kettlebell","Pullover com halter","Puxada frontal","Puxada articulada","Puxada convergente","Puxada unilateral","Remada baixa","Remada articulada","Remada unilateral","Remada cavalinho máquina","Remada Hammer","High Row","Low Row","Máquina de dorsal","Puxada aberta","Puxada fechada","Puxada supinada","Puxada neutra","Pulldown com braço reto","Pullover no cabo","Remada alta","Remada ajoelhada","Lat Pulldown unilateral"],
+  "Trapézio": ["Encolhimento com barra","Encolhimento com halteres","Encolhimento no Smith","Encolhimento com kettlebell","Farmer's Walk","High Pull","Remada alta","Encolhimento no cabo","Encolhimento máquina","Remada alta no cabo","Face Pull","Y-Raise no cabo"],
+  "Deltoide anterior": ["Desenvolvimento militar com barra","Desenvolvimento com halteres","Desenvolvimento Arnold","Desenvolvimento no Smith","Desenvolvimento na máquina","Desenvolvimento unilateral","Desenvolvimento sentado","Desenvolvimento em pé","Elevação frontal com barra","Elevação frontal com halteres","Elevação frontal no cabo","Elevação frontal unilateral","Landmine Press","Landmine Press unilateral"],
+  "Deltoide lateral": ["Elevação lateral com halteres","Elevação lateral unilateral","Elevação lateral no cabo","Elevação lateral unilateral no cabo","Elevação lateral na máquina","Elevação lateral inclinada","Elevação lateral sentado","Elevação lateral no banco","Lean-Away Lateral Raise"],
+  "Deltoide posterior": ["Crucifixo inverso com halteres","Crucifixo inverso na máquina","Crucifixo inverso no cabo","Crucifixo inverso unilateral","Face Pull","Reverse Pec Deck","Remada alta aberta","Remada para deltoide posterior","Y-Raise","Y-Raise no cabo","Rear Delt Row"],
+  "Bíceps": ["Rosca direta com barra","Rosca direta com barra W","Rosca direta com halteres","Rosca alternada","Rosca martelo","Rosca martelo cruzada","Rosca concentrada","Rosca Scott","Rosca Scott com barra","Rosca Scott com halteres","Rosca inclinada","Rosca spider","Rosca 21","Rosca Zottman","Rosca drag","Rosca reversa","Rosca unilateral","Rosca bayesiana","Rosca Scott máquina","Rosca máquina","Rosca unilateral máquina","Máquina de bíceps","Rosca direta no cabo","Rosca unilateral no cabo","Rosca martelo no cabo","Rosca inversa no cabo","Rosca baixa","Rosca alta","Bayesian Curl","Rosca concentrada no cabo"],
+  "Tríceps": ["Tríceps testa com barra","Tríceps testa com halteres","Tríceps francês","Tríceps francês unilateral","Tríceps acima da cabeça","Tríceps coice","Supino fechado","Paralelas","Tate Press","JM Press","Tríceps máquina","Tríceps mergulho máquina","Tríceps articulado","Tríceps pulley","Tríceps corda","Tríceps barra","Tríceps unilateral","Tríceps inverso","Tríceps cross-body","Tríceps coice no cabo"],
+  "Antebraço": ["Rosca de punho","Rosca de punho reversa","Rosca inversa","Rosca martelo","Farmer's Walk","Pinch Grip","Wrist Roller","Flexão de dedos","Extensão de dedos","Pronação de punho","Supinação de punho","Pegada estática"],
+  "Abdômen": ["Abdominal tradicional","Crunch","Crunch reverso","Abdominal bicicleta","Abdominal canivete","V-Up","Sit-up","Elevação de pernas","Elevação de joelhos","Mountain Climber","Dead Bug","Hollow Body Hold","Hollow Rock","Crunch no cabo","Crunch máquina","Elevação de pernas na máquina","Abdominal na máquina","Woodchopper no cabo","Pallof Press","Prancha","Prancha lateral","Prancha reversa","RKC Plank","Copenhagen Plank"],
+  "Lombar / Eretores": ["Levantamento terra","Terra romeno","Stiff","Good Morning","Hiperextensão","Hiperextensão unilateral","Extensão lombar na máquina","Reverse Hyperextension","Superman","Bird Dog","Back Extension"],
+  "Kettlebell": ["Kettlebell Swing","Russian Swing","American Swing","Goblet Squat","Front Squat","Clean","Clean & Press","Snatch","Turkish Get-Up","Windmill","Farmer Walk","Suitcase Carry","Front Rack Carry","Kettlebell Row","Kettlebell Deadlift","Kettlebell Lunges","Kettlebell Thruster","Kettlebell Press","Kettlebell High Pull"],
+  "Peso corporal": ["Flexão tradicional","Flexão inclinada","Flexão declinada","Flexão diamante","Flexão arqueiro","Flexão unilateral","Flexão explosiva","Barra fixa","Chin-up","Australian Pull-up","Paralelas","Dips","Pistol Squat","Bulgarian Split Squat","Nordic Curl","Sissy Squat","Handstand Push-up","Pike Push-up","Muscle-up","Burpee","Agachamento","Afundo","Step-up"]
+};
 const REST_COLOR = "#5b5b5b";
 const WEEKDAY_FULL = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
 const MONTH_NAMES_FULL = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
@@ -386,6 +410,17 @@ function totalSessions(){
   return n;
 }
 function totalDays(){ return Object.keys(state.sessions).length; }
+function sessionsThisMonth(){
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  let c = 0;
+  for(const key of Object.keys(state.sessions)){
+    const [ky, km] = key.split("-").map(Number);
+    if(ky === y && km === m) c += sessionsFor(key).length;
+  }
+  return c;
+}
 function sessionsThisWeek(){
   const now = new Date();
   const day = now.getDay();
@@ -400,6 +435,29 @@ function sessionsThisWeek(){
     if(dt >= start) c += sessionsFor(key).length;
   }
   return c;
+}
+
+function getLibraryNameSet(){
+  const set = new Set();
+  Object.values(EXERCISE_LIBRARY).forEach(arr => arr.forEach(n => set.add(n.toLowerCase())));
+  return set;
+}
+function getCustomExerciseNames(){
+  const libSet = getLibraryNameSet();
+  const names = new Set();
+  Object.values(state.workouts).forEach(w => {
+    (w.exercises || []).forEach(ex => {
+      const n = (ex.name || "").trim();
+      if(n && !libSet.has(n.toLowerCase())) names.add(n);
+    });
+  });
+  return Array.from(names).sort((a,b) => a.localeCompare(b, "pt-BR"));
+}
+function getAllExerciseNames(){
+  const names = new Set();
+  Object.values(EXERCISE_LIBRARY).forEach(arr => arr.forEach(n => names.add(n)));
+  getCustomExerciseNames().forEach(n => names.add(n));
+  return Array.from(names).sort((a,b) => a.localeCompare(b, "pt-BR"));
 }
 
 function findExercise(exId){
@@ -597,7 +655,7 @@ function render(){
   const todayArr = sessionsFor(todayKey());
   const todayCount = todayArr.length;
   const streak = computeStreak();
-  const total = totalSessions();
+  const total = sessionsThisMonth();
   const thisWeek = sessionsThisWeek();
   const now = new Date();
   const weekdayLabel = WEEKDAY_FULL[now.getDay()];
@@ -674,7 +732,7 @@ function render(){
   html += `<div class="card stats-card">
     <div class="stat streak"><div class="stat-num" data-count="${streak}">0</div><div class="stat-label">dias seguidos</div></div>
     <div class="stat"><div class="stat-num" data-count="${thisWeek}">0</div><div class="stat-label">essa semana</div></div>
-    <div class="stat"><div class="stat-num" data-count="${total}">0</div><div class="stat-label">total geral</div></div>
+    <div class="stat"><div class="stat-num" data-count="${total}">0</div><div class="stat-label">no mês</div></div>
   </div>`;
 
   html += `<div class="section-title-row">
@@ -708,7 +766,10 @@ function render(){
           return `
           <div class="exercise-row" data-exid="${ex.id}">
             <div class="ex-row-top">
-              <input class="ex-name-input" data-role="exname" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.name)}" placeholder="${cardio ? "Ex: Esteira, Bike..." : "Ex: Supino reto"}" aria-label="Nome do exercício">
+              <button type="button" class="ex-name-input ex-name-btn" data-role="openexname" data-letter="${key}" data-exid="${ex.id}" aria-label="Escolher nome do exercício">
+                <span class="ex-name-text ${ex.name ? "" : "placeholder"}">${ex.name ? escapeHtml(ex.name) : (cardio ? "Escolher exercício (Esteira, Bike...)" : "Escolher exercício")}</span>
+                ${ICONS.pencil}
+              </button>
               <button class="progress-btn" data-role="viewprogress" data-exid="${ex.id}" data-name="${escapeAttr(ex.name || "Exercício")}" ${hasHist ? "" : "disabled"} aria-label="Ver progresso">${ICONS.chart}</button>
               <button class="ex-del" data-role="delex" data-letter="${key}" data-exid="${ex.id}" aria-label="remover exercício">${ICONS.close}</button>
             </div>
@@ -982,6 +1043,18 @@ function openWorkoutPicker(dateKey){
   overlay = { type: "picker", dateKey };
   renderOverlay();
 }
+function openExercisePicker(opts){
+  overlay = {
+    type: "exercisePicker",
+    mode: opts.mode,
+    letter: opts.letter,
+    exId: opts.exId || null,
+    query: "",
+    selected: new Set(),
+    customChecked: false
+  };
+  renderOverlay();
+}
 function openDaySessionsSheet(dateKey){
   overlay = { type: "daySessions", dateKey };
   renderOverlay();
@@ -1000,6 +1073,7 @@ function renderOverlay(){
   if(overlay.type === "confirm") return renderConfirmOverlay(root);
   if(overlay.type === "picker") return renderPickerOverlay(root);
   if(overlay.type === "daySessions") return renderDaySessionsOverlay(root);
+  if(overlay.type === "exercisePicker") return renderExercisePickerOverlay(root);
 }
 
 function renderPickerOverlay(root){
@@ -1034,6 +1108,150 @@ function renderPickerOverlay(root){
       openDaySheet(dateKey, { mode: "new", letter });
     });
   });
+}
+
+function renderExercisePickerOverlay(root){
+  const { mode } = overlay;
+  root.innerHTML = `<div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-date">${mode === "rename" ? "Escolher exercício" : "Adicionar exercícios"}</div>
+      <button class="icon-btn" id="sheetClose" aria-label="fechar">${ICONS.close}</button>
+    </div>
+    <input type="text" id="exPickerSearch" class="ex-picker-search" placeholder="Buscar ou digitar um novo nome…" value="${escapeAttr(overlay.query)}" autocomplete="off" autocapitalize="sentences">
+    <div class="ex-picker-list" id="exPickerList"></div>
+    ${mode === "add" ? `<button class="footer-btn primary" id="exPickerConfirm" style="width:100%;margin-top:12px;">Adicionar selecionados</button>` : ""}
+  </div>`;
+  document.getElementById("sheetBackdrop").addEventListener("click", closeOverlay);
+  document.getElementById("sheetClose").addEventListener("click", closeOverlay);
+
+  const searchInput = document.getElementById("exPickerSearch");
+  searchInput.addEventListener("input", (e) => {
+    overlay.query = e.target.value;
+    renderExercisePickerList();
+  });
+
+  renderExercisePickerList();
+
+  if(mode === "add"){
+    const confirmBtn = document.getElementById("exPickerConfirm");
+    confirmBtn.addEventListener("click", async () => {
+      const names = Array.from(overlay.selected);
+      const q = overlay.query.trim();
+      if(overlay.customChecked && q && !names.some(n => n.toLowerCase() === q.toLowerCase())){
+        names.push(q);
+      }
+      if(names.length === 0){ showToast("Selecione ao menos um exercício"); return; }
+      const w = state.workouts[overlay.letter];
+      names.forEach(n => {
+        w.exercises.push({ id: newExId(), name: n, sets: "", reps: "", rest: "", mins: "", type: "strength" });
+      });
+      haptic([10,30,10]);
+      closeOverlay();
+      render();
+      await persist();
+      showToast(names.length === 1 ? "Exercício adicionado" : names.length + " exercícios adicionados");
+    });
+  }
+
+  setTimeout(() => { try{ searchInput.focus(); }catch(e){} }, 50);
+}
+
+function renderExercisePickerList(){
+  const listEl = document.getElementById("exPickerList");
+  if(!listEl || !overlay || overlay.type !== "exercisePicker") return;
+  const { mode, selected } = overlay;
+  const qRaw = overlay.query.trim();
+  const q = qRaw.toLowerCase();
+
+  const itemHtml = (n) => {
+    if(mode === "add"){
+      return `<label class="ex-picker-item">
+        <input type="checkbox" data-name="${escapeAttr(n)}" ${selected.has(n) ? "checked" : ""}>
+        <span>${escapeHtml(n)}</span>
+      </label>`;
+    }
+    return `<button type="button" class="ex-picker-item" data-role="pickexname" data-name="${escapeAttr(n)}">
+      ${escapeHtml(n)}
+    </button>`;
+  };
+  const customRowHtml = () => {
+    if(mode === "add"){
+      return `<label class="ex-picker-item ex-picker-custom">
+        <input type="checkbox" id="exPickerCustomCheck" ${overlay.customChecked ? "checked" : ""}>
+        <span>${ICONS.plus} Adicionar “${escapeHtml(qRaw)}”</span>
+      </label>`;
+    }
+    return `<button type="button" class="ex-picker-item ex-picker-custom" data-role="pickexname" data-name="${escapeAttr(qRaw)}">
+      ${ICONS.plus} Usar “${escapeHtml(qRaw)}”
+    </button>`;
+  };
+
+  let html = "";
+
+  if(q){
+    // busca: lista plana com todos os nomes (biblioteca + já usados) que combinam
+    const allNames = getAllExerciseNames();
+    const filtered = allNames.filter(n => n.toLowerCase().includes(q));
+    const exactMatch = allNames.some(n => n.toLowerCase() === q);
+    if(!exactMatch) html += customRowHtml();
+    filtered.forEach(n => { html += itemHtml(n); });
+  } else {
+    // sem busca: navegação por grupo muscular
+    const custom = getCustomExerciseNames();
+    if(custom.length){
+      html += `<details class="ex-picker-group">
+        <summary class="ex-picker-group-title"><span>Meus exercícios</span> <span class="ex-picker-count">${custom.length}</span></summary>
+        <div class="ex-picker-group-list">${custom.map(itemHtml).join("")}</div>
+      </details>`;
+    }
+    Object.keys(EXERCISE_LIBRARY).forEach(group => {
+      const list = EXERCISE_LIBRARY[group];
+      html += `<details class="ex-picker-group">
+        <summary class="ex-picker-group-title"><span>${escapeHtml(group)}</span> <span class="ex-picker-count">${list.length}</span></summary>
+        <div class="ex-picker-group-list">${list.map(itemHtml).join("")}</div>
+      </details>`;
+    });
+  }
+
+  listEl.innerHTML = html;
+
+  listEl.querySelectorAll("details.ex-picker-group").forEach(d => {
+    d.addEventListener("toggle", () => {
+      if(!d.open) return;
+      listEl.querySelectorAll("details.ex-picker-group[open]").forEach(o => { if(o !== d) o.open = false; });
+      d.scrollIntoView({ block: "nearest" });
+    });
+  });
+
+  if(mode === "add"){
+    const customCheck = document.getElementById("exPickerCustomCheck");
+    if(customCheck) customCheck.addEventListener("change", (e) => {
+      overlay.customChecked = e.target.checked;
+    });
+    listEl.querySelectorAll('input[type="checkbox"][data-name]').forEach(cb => {
+      cb.addEventListener("change", (e) => {
+        const n = e.target.dataset.name;
+        if(e.target.checked) overlay.selected.add(n);
+        else overlay.selected.delete(n);
+      });
+    });
+  } else {
+    listEl.querySelectorAll('[data-role="pickexname"]').forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const name = btn.dataset.name;
+        const w = state.workouts[overlay.letter];
+        const ex = w.exercises.find(e => e.id === overlay.exId);
+        if(!ex) return;
+        ex.name = name;
+        haptic(6);
+        closeOverlay();
+        render();
+        await persist();
+      });
+    });
+  }
 }
 
 function renderDaySessionsOverlay(root){
@@ -1211,7 +1429,7 @@ function renderDayOverlay(root){
         set.reps = Math.max(0, cur + (role === "rplus" ? 1 : -1));
         autoSaveOverlay();
         const el = root.querySelector(`[data-field="reps"][data-exid="${exid}"][data-setidx="${setidx}"]`);
-        if(el){ el.textContent = set.reps; }
+        if(el){ el.value = set.reps; }
       } else if(role === "mplus" || role === "mminus"){
         const cur = set.minutes != null ? Number(set.minutes) : 0;
         set.minutes = Math.max(0, cur + (role === "mplus" ? 1 : -1));
@@ -1242,6 +1460,26 @@ function renderDayOverlay(root){
     });
   });
 
+  root.querySelectorAll('input.step-value.input[data-field="reps"]').forEach(inp => {
+    inp.addEventListener("input", () => {
+      const exid = inp.dataset.exid;
+      const setidx = parseInt(inp.dataset.setidx, 10);
+      const sets = overlay.log[exid];
+      if(!sets || !sets[setidx]) return;
+      const parsed = parseNum(inp.value);
+      sets[setidx].reps = parsed;
+      autoSaveOverlay();
+    });
+    inp.addEventListener("blur", () => {
+      const exid = inp.dataset.exid;
+      const setidx = parseInt(inp.dataset.setidx, 10);
+      const sets = overlay.log[exid];
+      if(!sets || !sets[setidx]) return;
+      const r = sets[setidx].reps;
+      inp.value = r == null ? "" : String(r);
+    });
+  });
+
   root.querySelectorAll('[data-role="toggleSet"]').forEach(btn => {
     btn.addEventListener("click", () => {
       const exid = btn.dataset.exid;
@@ -1259,37 +1497,6 @@ function renderDayOverlay(root){
       } else {
         haptic(6);
       }
-    });
-  });
-
-  root.querySelectorAll('[data-role="removeset"]').forEach(btn => {
-    btn.addEventListener("click", () => {
-      const exid = btn.dataset.exid;
-      const setidx = parseInt(btn.dataset.setidx, 10);
-      const sets = overlay.log[exid];
-      if(!sets) return;
-      sets.splice(setidx, 1);
-      haptic(6);
-      autoSaveOverlay();
-      renderOverlay();
-    });
-  });
-
-  root.querySelectorAll('[data-role="addset"]').forEach(btn => {
-    btn.addEventListener("click", () => {
-      haptic(6);
-      const exid = btn.dataset.exid;
-      const ex = findExercise(exid);
-      const sets = overlay.log[exid] || [];
-      const last = sets[sets.length - 1] || {};
-      if(isCardio(ex)){
-        sets.push({ minutes: last.minutes ?? null, done: false });
-      } else {
-        sets.push({ weight: last.weight ?? null, reps: last.reps ?? null, done: false });
-      }
-      overlay.log[exid] = sets;
-      autoSaveOverlay();
-      renderOverlay();
     });
   });
 
@@ -1373,15 +1580,16 @@ function renderStrengthRow(ex, log, dateKey){
           </div>
           <div class="step-group">
             <button class="step-btn" data-role="rminus" data-exid="${ex.id}" data-setidx="${i}" aria-label="diminuir reps">−</button>
-            <div class="step-value" data-field="reps" data-exid="${ex.id}" data-setidx="${i}">${initialReps}</div>
+            <input class="step-value input" type="text" inputmode="numeric"
+              data-field="reps" data-exid="${ex.id}" data-setidx="${i}"
+              value="${escapeAttr(initialReps != null && initialReps !== "" ? String(initialReps) : "")}"
+              aria-label="repetições">
             <button class="step-btn" data-role="rplus" data-exid="${ex.id}" data-setidx="${i}" aria-label="aumentar reps">+</button>
           </div>
           <button class="sheet-set-check" data-role="toggleSet" data-exid="${ex.id}" data-setidx="${i}" aria-label="marcar série ${i+1}">${ICONS.checkSm}</button>
-          <button class="sheet-set-remove" data-role="removeset" data-exid="${ex.id}" data-setidx="${i}" aria-label="remover série ${i+1}">${ICONS.close}</button>
         </div>`;
       }).join("")}
     </div>
-    <button class="add-set-btn" data-role="addset" data-exid="${ex.id}">+ adicionar série</button>
   </div>`;
 }
 
@@ -1407,11 +1615,9 @@ function renderCardioRow(ex, log, dateKey){
             <button class="step-btn" data-role="mplus" data-exid="${ex.id}" data-setidx="${i}" aria-label="aumentar minutos">+</button>
           </div>
           <button class="sheet-set-check" data-role="toggleSet" data-exid="${ex.id}" data-setidx="${i}" aria-label="marcar ${i+1}">${ICONS.checkSm}</button>
-          <button class="sheet-set-remove" data-role="removeset" data-exid="${ex.id}" data-setidx="${i}" aria-label="remover série ${i+1}">${ICONS.close}</button>
         </div>`;
       }).join("")}
     </div>
-    <button class="add-set-btn" data-role="addset" data-exid="${ex.id}">+ adicionar sessão</button>
   </div>`;
 }
 
@@ -1976,18 +2182,24 @@ function attachHandlers(){
     });
   });
 
-  document.querySelectorAll('[data-role="exname"], [data-role="exsets"], [data-role="exreps"], [data-role="exrest"], [data-role="exmins"]').forEach(el => {
+  document.querySelectorAll('[data-role="exsets"], [data-role="exreps"], [data-role="exrest"], [data-role="exmins"]').forEach(el => {
     el.addEventListener("change", async () => {
       const w = state.workouts[el.dataset.letter];
       const ex = w.exercises.find(e => e.id === el.dataset.exid);
       if(!ex) return;
       const r = el.dataset.role;
-      if(r === "exname") ex.name = el.value;
       if(r === "exsets") ex.sets = el.value;
       if(r === "exreps") ex.reps = el.value;
       if(r === "exrest") ex.rest = el.value;
       if(r === "exmins") ex.mins = el.value;
       await persist();
+    });
+  });
+
+  document.querySelectorAll('[data-role="openexname"]').forEach(el => {
+    el.addEventListener("click", () => {
+      haptic(6);
+      openExercisePicker({ mode: "rename", letter: el.dataset.letter, exId: el.dataset.exid });
     });
   });
 
@@ -2008,15 +2220,9 @@ function attachHandlers(){
   });
 
   document.querySelectorAll('[data-role="addex"]').forEach(el => {
-    el.addEventListener("click", async () => {
+    el.addEventListener("click", () => {
       haptic(6);
-      const w = state.workouts[el.dataset.letter];
-      w.exercises.push({ id: newExId(), name: "", sets: "", reps: "", rest: "", mins: "", type: "strength" });
-      render();
-      await persist();
-      const inputs = document.querySelectorAll(`[data-letter="${el.dataset.letter}"][data-role="exname"]`);
-      const lastInput = inputs[inputs.length - 1];
-      if(lastInput) lastInput.focus();
+      openExercisePicker({ mode: "add", letter: el.dataset.letter });
     });
   });
 
