@@ -1,14 +1,13 @@
 const STORAGE_KEY = "gym-data";
 const THEME_KEY = "gym-theme";
-const APP_VERSION = "v4.1";
+const APP_VERSION = "v5.0";
 const SCHEMA_VERSION = 3;
 const AUTOBACKUP_KEY = "gym-autobackups";
 const AUTOBACKUP_MAX = 5;
 const SESSION_KEY = "gym-session";
 const USERS_URL = "users.json";
 
-/* ---------- login / usuário / dados por usuário ---------- */
-let currentUser = null; // {username, name} ou null
+let currentUser = null;
 let authError = "";
 let authBusy = false;
 let activeTab = "inicio";
@@ -18,8 +17,6 @@ function storageKey(){ return currentUser ? `${STORAGE_KEY}:${currentUser.userna
 function autobackupKey(){ return currentUser ? `${AUTOBACKUP_KEY}:${currentUser.username}` : AUTOBACKUP_KEY; }
 
 function migrateUserDataIfNeeded(username){
-  // Na primeira vez que um usuário loga depois desta atualização, copia os
-  // dados da chave antiga (sem usuário) para a chave dele, sem apagar a antiga.
   try{
     const newKey = `${STORAGE_KEY}:${username}`;
     const newAb = `${AUTOBACKUP_KEY}:${username}`;
@@ -51,7 +48,7 @@ async function fetchUsers(){
 
 async function tryLogin(username, password){
   username = (username || "").trim();
-  password = (password || "").replace(/^\s+|\s+$/g, ""); // remove espaços que o teclado do iPhone às vezes cola sem querer
+  password = (password || "").replace(/^\s+|\s+$/g, "");
   if(!username || !password) return { ok: false, msg: "Preencha usuário e senha." };
   const users = await fetchUsers();
   if(!users) return { ok: false, msg: "Não foi possível verificar o login (sem conexão e sem dados salvos ainda)." };
@@ -105,7 +102,6 @@ function doLogout(){
   renderLogin();
 }
 
-/* ---------- roteador de abas (hash) ---------- */
 function getTabFromHash(){
   const h = (window.location.hash || "").replace(/^#\/?/, "");
   return TABS.includes(h) ? h : null;
@@ -133,7 +129,7 @@ const KG_PER_LB = 0.45359237;
 const SET_TYPES = ["normal", "warm", "drop", "fail"];
 const SET_TYPE_LABEL = { normal: "", warm: "A", drop: "D", fail: "F" };
 const SET_TYPE_NAME = { normal: "normal", warm: "aquecimento", drop: "drop set", fail: "até a falha" };
-const PALETTE = ["#ff5a1f", "#3d9dff", "#30d158", "#ffd60a", "#bf5af2", "#64d2ff"];
+const PALETTE = ["#ff5a1f", "#3d9dff", "#30b857", "#f5b400", "#9b59b6", "#0ea5b7"];
 
 const EXERCISE_LIBRARY = {
   "Quadríceps": ["Agachamento livre","Agachamento frontal","Agachamento com barra alta","Agachamento com barra baixa","Agachamento sumô","Agachamento com halteres","Agachamento goblet","Agachamento búlgaro","Agachamento unilateral","Agachamento com calcanhar elevado","Agachamento Zercher","Agachamento Hack com barra","Step-up com halteres","Afundo com barra","Afundo com halteres","Afundo reverso","Afundo caminhando","Afundo búlgaro","Sissy squat","Pistol squat","Leg Press 45°","Leg Press horizontal","Leg Press vertical","Hack Squat","Agachamento Smith","Agachamento pendular","Agachamento V-Squat","Cadeira extensora","Belt Squat","Máquina de agachamento unilateral","Agachamento no cabo","Afundo no cabo","Agachamento unilateral no cabo","Step-up no cabo"],
@@ -158,7 +154,7 @@ const EXERCISE_LIBRARY = {
   "Kettlebell": ["Kettlebell Swing","Russian Swing","American Swing","Goblet Squat","Front Squat","Clean","Clean & Press","Snatch","Turkish Get-Up","Windmill","Farmer Walk","Suitcase Carry","Front Rack Carry","Kettlebell Row","Kettlebell Deadlift","Kettlebell Lunges","Kettlebell Thruster","Kettlebell Press","Kettlebell High Pull"],
   "Peso corporal": ["Flexão tradicional","Flexão inclinada","Flexão declinada","Flexão diamante","Flexão arqueiro","Flexão unilateral","Flexão explosiva","Barra fixa","Chin-up","Australian Pull-up","Paralelas","Dips","Pistol Squat","Bulgarian Split Squat","Nordic Curl","Sissy Squat","Handstand Push-up","Pike Push-up","Muscle-up","Burpee","Agachamento","Afundo","Step-up"]
 };
-const REST_COLOR = "#5b5b5b";
+const REST_COLOR = "#8e8e97";
 const WEEKDAY_FULL = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
 const MONTH_NAMES_FULL = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 
@@ -180,8 +176,11 @@ const ICONS = {
   autoSmall: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor"/></svg>`,
   left: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`,
   right: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`,
-  eye: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
-  eyeOff: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.6 21.6 0 0 1-3.22 4.44M1 1l22 22"/><path d="M9.53 9.53A3.5 3.5 0 0 0 12 15.5a3.5 3.5 0 0 0 2.47-1.03"/></svg>`,
+  eye: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  eyeOff: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.6 21.6 0 0 1-3.22 4.44M1 1l22 22"/><path d="M9.53 9.53A3.5 3.5 0 0 0 12 15.5a3.5 3.5 0 0 0 2.47-1.03"/></svg>`,
+  user: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.5 4-5 7-5s5.8 1.5 7 5"/></svg>`,
+  lock: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>`,
+  logoDumbbell: `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z" fill="currentColor" stroke="none" opacity="0.18"/><path d="M6.5 6.5h11v11h-11z"/><path d="M3 9v6M21 9v6M1 10.5v3M23 10.5v3"/></svg>`,
   dumbbell: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M3 9v6M21 9v6M1 10.5v3M23 10.5v3"/></svg>`,
   timer: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>`,
   cardio: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>`,
@@ -239,7 +238,6 @@ function fmtClock(totalSec){
   if(h > 0) return h + ":" + pad(m) + ":" + pad(sec);
   return pad(m) + ":" + pad(sec);
 }
-/* ---------- unidades e helpers de série ---------- */
 function unit(){ return state.settings && state.settings.unit === "lb" ? "lb" : "kg"; }
 function toDisp(kg){ if(kg == null) return null; return unit() === "lb" ? kg / KG_PER_LB : kg; }
 function fromDisp(v){
@@ -299,7 +297,7 @@ function applyTheme(pref){
     const meta = document.querySelector('meta[name="theme-color"]');
     if(meta){
       const dark = pref === "dark" || (pref === "auto" && !window.matchMedia("(prefers-color-scheme: light)").matches);
-      meta.setAttribute("content", dark ? "#000000" : "#f4f4f6");
+      meta.setAttribute("content", dark ? "#000000" : "#ffffff");
     }
   } catch(e){}
 }
@@ -425,7 +423,6 @@ function migrateSettings(s){
   if(s.settings.lastBackupAt === undefined) s.settings.lastBackupAt = null;
   if(s.settings.workoutsCollapsed === undefined) s.settings.workoutsCollapsed = false;
   if(!s.settings.collapsedSections || typeof s.settings.collapsedSections !== "object" || Array.isArray(s.settings.collapsedSections)){
-    // migra o antigo "ocultar treinos" para o novo mapa por seção
     s.settings.collapsedSections = s.settings.workoutsCollapsed ? { workouts: true } : {};
   }
   if(s.settings.restDuration === undefined) s.settings.restDuration = 90;
@@ -590,8 +587,6 @@ function lastSessionEntry(){
 function isRestLetter(letter){
   return !!(letter && state.workouts[letter] && state.workouts[letter].isRest);
 }
-// Igual a lastSessionEntry, mas ignora sessões de descanso: um dia marcado
-// como descanso não deve "consumir" a vez de um treino no ciclo automático.
 function lastNonRestSessionEntry(){
   const keys = Object.keys(state.sessions).sort();
   for(let i = keys.length - 1; i >= 0; i--){
@@ -603,9 +598,6 @@ function lastNonRestSessionEntry(){
   return null;
 }
 function nextWorkoutLetter(){
-  // O ciclo automático considera só os treinos de verdade (A/B/C...); dias de
-  // descanso ficam de fora da rotação, então marcar um descanso não pula nem
-  // repete um treino.
   const order = state.order.filter(k => !isRestLetter(k));
   if(!order.length) return state.order[0];
   const last = lastNonRestSessionEntry();
@@ -868,9 +860,6 @@ function renderHeroClock(){
   timeEl.textContent = fmtClock(Math.floor(ms / 1000));
 }
 
-/* ================= Rodada 4 ================= */
-
-/* ---------- tela sempre ligada (Wake Lock) ---------- */
 let wakeLock = null;
 async function syncWakeLock(){
   if(!("wakeLock" in navigator)) return;
@@ -888,7 +877,6 @@ async function syncWakeLock(){
   }catch(e){ wakeLock = null; }
 }
 
-/* ---------- armazenamento persistente ---------- */
 let storagePersisted = null;
 function storageStatusText(){
   if(storagePersisted === null) return "verificando…";
@@ -911,7 +899,6 @@ async function requestPersistentStorage(){
   }
 }
 
-/* ---------- backups automáticos (rotativos, dentro do app) ---------- */
 function readAutoBackups(){
   try{
     const list = JSON.parse(window.localStorage.getItem(autobackupKey()) || "[]");
@@ -925,7 +912,7 @@ function writeAutoBackups(list){
       window.localStorage.setItem(autobackupKey(), JSON.stringify(copy));
       return true;
     }catch(e){
-      copy.pop(); // sem espaço: descarta o mais antigo e tenta de novo
+      copy.pop();
     }
   }
   return false;
@@ -948,7 +935,6 @@ function takeAutoBackup(force){
   }catch(e){}
 }
 
-/* ---------- validação de backup importado ---------- */
 function validateBackup(p){
   if(!p || typeof p !== "object" || Array.isArray(p)) return { ok:false, error:"Arquivo inválido" };
   if(typeof p.schemaVersion === "number" && p.schemaVersion > SCHEMA_VERSION){
@@ -972,7 +958,6 @@ function validateBackup(p){
   return { ok:true };
 }
 
-/* ---------- entrega de arquivo (compartilhar ou baixar) ---------- */
 async function deliverFile(content, filename, mime, shareTitle){
   try{
     const file = new File([content], filename, { type: mime });
@@ -995,7 +980,6 @@ async function deliverFile(content, filename, mime, shareTitle){
   return "downloaded";
 }
 
-/* ---------- séries de um exercício (base p/ recordes e sugestões) ---------- */
 function forEachWorkSet(exId, cb){
   Object.keys(state.sessions).sort().forEach(k => {
     sessionsFor(k).forEach(sess => {
@@ -1034,7 +1018,7 @@ function exercisePRs(exId){
 function checkPR(exId, set, sets, idx){
   if(!(set.weight > 0)) return null;
   const prior = bestBefore(exId, overlay.dateKey, overlay.sessionId);
-  if(!prior) return null; // primeira vez: nada para superar
+  if(!prior) return null;
   let bestW = prior.maxWeight, best1 = prior.best1rm;
   sets.forEach((s, i) => {
     if(i === idx || !s.done || !isWork(s) || !(s.weight > 0)) return;
@@ -1047,7 +1031,6 @@ function checkPR(exId, set, sets, idx){
   return null;
 }
 
-/* ---------- sugestão de progressão ---------- */
 function lastWorkSets(exId, beforeKey){
   const keys = Object.keys(state.sessions).filter(k => k < beforeKey).sort();
   for(let i = keys.length - 1; i >= 0; i--){
@@ -1078,7 +1061,6 @@ function suggestNext(ex, beforeKey){
   return { weight: top, reps, text: `Sugestão: ${fmtW(top)} ${unit()} × ${reps} (busque +1 rep)` };
 }
 
-/* ---------- estatísticas ---------- */
 let statsRange = 30;
 let _libGroupMap = null;
 function muscleGroupOf(name){
@@ -1148,7 +1130,6 @@ function fmtVolume(kg){
   const v = Math.round(toDisp(kg));
   return v.toLocaleString("pt-BR") + " " + unit();
 }
-/* ---------- seções ocultáveis ---------- */
 function isCollapsed(id){
   const c = state.settings.collapsedSections;
   return !!(c && c[id]);
@@ -1207,8 +1188,6 @@ function renderStatsCard(){
   </div>`;
 }
 function collectRecords(){
-  // Um único exercício por treino: o que tem o recorde de carga mais recente
-  // (em empate, o de maior carga). Assim a seção fica enxuta.
   const out = [];
   state.order.forEach(key => {
     const w = state.workouts[key];
@@ -1245,7 +1224,6 @@ function renderRecordsCard(){
   </div>`;
 }
 
-/* ---------- corpo (peso e medidas) ---------- */
 const BODY_MEASURES = [
   { key: "waist", label: "Cintura" },
   { key: "chest", label: "Peito" },
@@ -1346,7 +1324,6 @@ function renderBodyOverlay(root){
   });
 }
 
-/* ---------- backups automáticos: tela ---------- */
 function openBackupsSheet(){
   overlay = { type: "backups" };
   renderOverlay();
@@ -1482,13 +1459,13 @@ function render(){
     <div class="stat"><div class="stat-num" data-count="${total}">0</div><div class="stat-label">no mês</div></div>
   </div>`;
 
-  /* ---------- Início: saudação, bolinhas da semana e último recorde ---------- */
   const hour = now.getHours();
   const greetWord = hour < 5 ? "Boa madrugada" : hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
   const dateLabel = `${weekdayLabel}, ${now.getDate()} de ${MONTH_NAMES_FULL[now.getMonth()]}`;
+  const firstName = (currentUser.name || "Treinador").split(" ")[0];
   const greetHtml = `<div class="greet-row">
     <div>
-      <div class="greet-hello">${greetWord}, ${escapeHtml(currentUser.name || "Treinador")}</div>
+      <div class="greet-hello">${greetWord}, <span style="color:var(--accent)">${escapeHtml(firstName)}</span></div>
       <div class="greet-date">${dateLabel}</div>
     </div>
   </div>`;
@@ -1532,7 +1509,6 @@ function render(){
 
   const homeHtml = `${greetHtml}${bannersHtml}${heroHtml}${statsRowHtml}${weekDotsHtml}${lastRecordHtml}${quickActionsHtml}`;
 
-  /* ---------- Treinos ---------- */
   let workoutsHtml = "";
   state.order.forEach((key, idx) => {
     const w = state.workouts[key];
@@ -1543,7 +1519,7 @@ function render(){
           <button class="reorder-btn" data-role="moveup" data-letter="${key}" ${idx===0?"disabled":""} aria-label="mover para cima">${ICONS.up}</button>
           <button class="reorder-btn" data-role="movedown" data-letter="${key}" ${idx===state.order.length-1?"disabled":""} aria-label="mover para baixo">${ICONS.down}</button>
         </div>
-        <div class="workout-chip" style="background:${color}${w.isRest?";color:#f5f5f5":""}">${w.isRest ? ICONS.moonSmall : key}</div>
+        <div class="workout-chip" style="background:${color}">${w.isRest ? ICONS.moonSmall : key}</div>
         <input class="workout-title-input" data-role="wname" data-letter="${key}" value="${escapeAttr(w.name)}" placeholder="${w.isRest ? "Nome do descanso" : "Nome do treino"}" aria-label="Nome de ${w.isRest ? "descanso" : "treino " + key}">
         <span class="edit-pencil">${ICONS.pencil}</span>
         ${w.isRest ? "" : `<button class="icon-btn" data-role="dupworkout" data-letter="${key}" aria-label="duplicar treino ${key}">${ICONS.copy}</button>`}
@@ -1599,7 +1575,6 @@ function render(){
     <button class="add-workout-btn" id="addRestBtn">${ICONS.moonSmall} Descanso</button>
   </div>`;
 
-  /* ---------- Histórico ---------- */
   const legendWorkouts = state.order.filter(k => !state.workouts[k]?.isRest);
   const hasRest = state.order.some(k => state.workouts[k]?.isRest);
   let historyHtml = `<div class="card">
@@ -1631,17 +1606,15 @@ function render(){
         <span class="ms-letters">${arr.map(s => {
           const isRest = isRestLetter(s.letter);
           const bg = s.letter && state.workouts[s.letter] && !isRest ? colorFor(s.letter, state.order) : REST_COLOR;
-          return `<span class="ms-chip" style="background:${bg}${isRest ? ";color:#f5f5f5" : ""}">${isRest ? ICONS.moonSmall : (s.letter || "?")}</span>`;
+          return `<span class="ms-chip" style="background:${bg}">${isRest ? ICONS.moonSmall : (s.letter || "?")}</span>`;
         }).join("")}</span>
         <span class="ms-arrow">${ICONS.right}</span>
       </button>`;
     }).join("")}</div>`;
   }
 
-  /* ---------- Progresso ---------- */
   const progressHtml = renderStatsCard() + renderRecordsCard() + renderBodyCard();
 
-  /* ---------- Ajustes ---------- */
   const r = state.settings.reminder;
   const themePref = getThemePref();
   const bkDays = daysSince(state.settings.lastBackupAt);
@@ -1758,7 +1731,6 @@ function render(){
     <input type="file" id="importFile" accept="application/json">
     <div class="app-footer">William Dantas - ©2026</div>`;
 
-  /* ---------- monta a aba ativa ---------- */
   const TAB_TITLES = { treinos: "Treinos", historico: "Histórico", progresso: "Progresso", ajustes: "Ajustes" };
   let content;
   if(activeTab === "treinos") content = `<h1 class="tab-title">${TAB_TITLES.treinos}</h1>${workoutsHtml}`;
@@ -1830,7 +1802,7 @@ function buildMonthCalendar(monthDate){
     const letter = count ? arr[arr.length - 1].letter : null;
     const isToday = key === todayKey();
     const isFuture = d > todayD;
-    const style = letter ? `background:${colorFor(letter, state.order)};color:${state.workouts[letter]?.isRest ? "#f5f5f5" : "#0a0a0a"}` : "";
+    const style = letter ? `background:${colorFor(letter, state.order)};color:#fff` : "";
     const cls = "cal-cell" + (letter ? " filled" : "") + (isToday ? " today" : "") + (isFuture ? " future" : "");
     const label = `${day} de ${MONTH_NAMES_FULL[month]}${count ? " — " + count + " treino(s)" : (isFuture ? "" : " — sem treino")}`;
     const badge = count > 1 ? `<span class="cal-badge">${count}x</span>` : "";
@@ -1994,7 +1966,7 @@ function renderPickerOverlay(root){
         const wk = state.workouts[k];
         const isRest = wk?.isRest;
         return `<button class="sheet-picker-item" data-role="pickletter" data-letter="${k}">
-          <div class="spi-chip" style="background:${colorFor(k,state.order)}${isRest?";color:#f5f5f5":""}">${isRest ? ICONS.moonSmall : k}</div>
+          <div class="spi-chip" style="background:${colorFor(k,state.order)}">${isRest ? ICONS.moonSmall : k}</div>
           <div class="spi-name">${escapeHtml(wk?.name || workoutLabel(k))}</div>
         </button>`;
       }).join("")}
@@ -2007,7 +1979,6 @@ function renderPickerOverlay(root){
       haptic(6);
       const letter = b.dataset.letter;
       overlay = null;
-      // inicia o novo treino com o cronômetro e abre o sheet em modo "new"
       startActiveSession(letter);
       openDaySheet(dateKey, { mode: "new", letter });
     });
@@ -2095,14 +2066,12 @@ function renderExercisePickerList(){
   let html = "";
 
   if(q){
-    // busca: lista plana com todos os nomes (biblioteca + já usados) que combinam
     const allNames = getAllExerciseNames();
     const filtered = allNames.filter(n => n.toLowerCase().includes(q));
     const exactMatch = allNames.some(n => n.toLowerCase() === q);
     if(!exactMatch) html += customRowHtml();
     filtered.forEach(n => { html += itemHtml(n); });
   } else {
-    // sem busca: navegação por grupo muscular
     const custom = getCustomExerciseNames();
     if(custom.length){
       html += `<details class="ex-picker-group">
@@ -2185,7 +2154,7 @@ function renderDaySessionsOverlay(root){
         if(dur) metaBits.push(fmtDuration(dur));
         if(setsCount) metaBits.push(setsCount + " série(s)");
         return `<div class="sheet-day-session" role="button" data-role="opensession" data-sessionid="${sess.id}">
-          <div class="sds-chip" style="background:${colorFor(sess.letter, state.order)}${isRest?";color:#f5f5f5":""}">${isRest ? ICONS.moonSmall : sess.letter}</div>
+          <div class="sds-chip" style="background:${colorFor(sess.letter, state.order)}">${isRest ? ICONS.moonSmall : sess.letter}</div>
           <div class="sds-info">
             <div class="sds-name">${escapeHtml(wk?.name || workoutLabel(sess.letter))}</div>
             <div class="sds-meta">${metaBits.join(" · ")}</div>
@@ -2282,7 +2251,6 @@ function flushAutoSave(){
   if(autoSaveTimer){ clearTimeout(autoSaveTimer); autoSaveTimer = null; autoSaveOverlay(); }
 }
 
-// valores que aparecem pré-preenchidos na tela; são gravados só quando você interage
 function setDefaults(ex, dateKey){
   const last = lastLoggedValue(ex.id, dateKey);
   if(isCardio(ex)){
@@ -2352,7 +2320,7 @@ function renderDayOverlay(root){
         const wk = state.workouts[k];
         const label = wk?.isRest ? "Desc." : k;
         const active = k === letter;
-        return `<button class="chip" data-role="sheetletter" data-letter="${k}" aria-pressed="${active}" style="${active ? `background:${colorFor(k,state.order)};color:${wk?.isRest?"#f5f5f5":"#0a0a0a"};border-color:transparent` : ""}">${label}</button>`;
+        return `<button class="chip" data-role="sheetletter" data-letter="${k}" aria-pressed="${active}" style="${active ? `background:${colorFor(k,state.order)};color:#fff;border-color:transparent` : ""}">${label}</button>`;
       }).join("")}
     </div>
     ${hasExercises ? `<p class="sheet-hint">Toque no número da série para marcar aquecimento (A), drop set (D) ou até a falha (F). Aquecimento não entra nas estatísticas.</p>` : ""}
@@ -2396,7 +2364,6 @@ function renderDayOverlay(root){
     b.addEventListener("click", () => { haptic(6); overlay.letter = b.dataset.letter; renderOverlay(); });
   });
 
-  // botões de + e −
   root.querySelectorAll(".step-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       haptic(6);
@@ -2425,7 +2392,6 @@ function renderDayOverlay(root){
     });
   });
 
-  // digitar peso / reps
   root.querySelectorAll('input.step-value.input[data-field="weight"]').forEach(inp => {
     inp.addEventListener("input", () => {
       const exid = inp.dataset.exid;
@@ -2463,7 +2429,6 @@ function renderDayOverlay(root){
     });
   });
 
-  // tipo da série (normal → aquecimento → drop → falha)
   root.querySelectorAll('[data-role="settype"]').forEach(btn => {
     btn.addEventListener("click", () => {
       const exid = btn.dataset.exid;
@@ -2485,7 +2450,6 @@ function renderDayOverlay(root){
     });
   });
 
-  // marcar série concluída
   root.querySelectorAll('[data-role="toggleSet"]').forEach(btn => {
     btn.addEventListener("click", () => {
       const exid = btn.dataset.exid;
@@ -2530,7 +2494,6 @@ function renderDayOverlay(root){
     });
   });
 
-  // aplicar sugestão de progressão
   root.querySelectorAll('[data-role="applysuggest"]').forEach(btn => {
     btn.addEventListener("click", () => {
       const exid = btn.dataset.exid;
@@ -2550,7 +2513,6 @@ function renderDayOverlay(root){
     });
   });
 
-  // RPE e observação por exercício
   root.querySelectorAll('[data-role="exrpe"]').forEach(sel => {
     sel.addEventListener("change", () => {
       const v = sel.value ? parseInt(sel.value, 10) : null;
@@ -2581,7 +2543,6 @@ function renderDayOverlay(root){
     });
     const meta = cleanMeta(overlay.meta);
     const note = (overlay.note || "").trim();
-    // reaproveita a sessão aberta criada pelo startActiveSession, se existir
     let sess = arr.find(s => s.letter === lt && !s.endedAt);
     if(sess){
       sess.log = cleanLog;
@@ -2823,9 +2784,6 @@ function buildRestTimerDom(root, C){
     }
   });
 }
-// Monta o timer uma única vez e depois só atualiza texto e anel no lugar.
-// (Antes o HTML inteiro era recriado a cada segundo, o que reiniciava a
-// animação de entrada e fazia a barra inferior "piscar".)
 function renderRestTimer(){
   const root = document.getElementById("restTimerRoot");
   if(!root) return;
@@ -2854,7 +2812,6 @@ function renderRestTimer(){
   }
 
   if(!restTimerInterval){
-    // 250 ms: o número troca no instante certo e o anel avança de forma contínua
     restTimerInterval = setInterval(renderRestTimer, 250);
   }
 }
@@ -3085,7 +3042,6 @@ async function exportCsv(){
   }
 }
 
-/* ---------- barra de abas ---------- */
 const TAB_DEFS = [
   { id: "inicio", label: "Início", icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>` },
   { id: "treinos", label: "Treinos", icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M3 9v6M21 9v6M1 10.5v3M23 10.5v3"/></svg>` },
@@ -3110,39 +3066,44 @@ function renderTabBar(){
   });
 }
 
-/* ---------- tela de login ---------- */
+/* ---------- tela de login (fiel ao mockup) ---------- */
 function renderLogin(){
   const app = document.getElementById("app");
   const bar = document.getElementById("tabBar");
   if(bar) bar.innerHTML = "";
   if(!app) return;
   app.innerHTML = `<div class="login-wrap">
-    <div class="login-logo">${ICONS.dumbbell}</div>
-    <h1 class="login-title">Meus Treinos</h1>
-    <p class="login-sub">Entre para ver seus treinos</p>
-    <div class="card login-card">
-      <label class="body-field wide" style="margin-bottom:12px;">
-        <span>Usuário</span>
-        <input type="text" id="loginUser" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <div class="login-logo">
+      <img src="icons/logo.png" alt="Meus Treinos" onerror="this.style.display='none'; this.parentElement.innerHTML='${ICONS.logoDumbbell.replace(/'/g, "\\'")}';">
+    </div>
+    <h1 class="login-title">Meus <span class="accent">Treinos</span></h1>
+
+    <div class="login-form">
+      <label class="login-input-wrap">
+        <span class="li-icon">${ICONS.user}</span>
+        <input type="text" id="loginUser" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Usuário">
       </label>
-      <label class="body-field wide" style="margin-bottom:6px;">
-        <span>Senha</span>
-        <div class="pw-wrap">
-          <input type="password" id="loginPass" autocomplete="current-password">
-          <button type="button" class="pw-toggle" id="loginPwToggle" aria-label="mostrar senha">${ICONS.eye}</button>
-        </div>
+
+      <label class="login-input-wrap">
+        <span class="li-icon">${ICONS.lock}</span>
+        <input type="password" id="loginPass" autocomplete="current-password" placeholder="Senha">
+        <button type="button" class="pw-toggle" id="loginPwToggle" aria-label="mostrar senha">${ICONS.eye}</button>
       </label>
+
       <label class="login-keep-row">
-        <span class="switch">
+        <span class="switch lg">
           <input type="checkbox" id="loginKeep" checked>
           <span class="slider"></span>
         </span>
         <span>Manter conectado</span>
       </label>
+
       ${authError ? `<div class="login-error">${escapeHtml(authError)}</div>` : ""}
-      <button type="button" class="cta-btn" id="loginSubmit" ${authBusy ? "disabled" : ""} style="width:100%;margin-top:6px;">${authBusy ? "Entrando…" : "Entrar"}</button>
+
+      <button type="button" class="cta-btn" id="loginSubmit" ${authBusy ? "disabled" : ""}>${authBusy ? "Entrando…" : "Entrar"}</button>
     </div>
   </div>`;
+
   const userInput = document.getElementById("loginUser");
   const passInput = document.getElementById("loginPass");
   const submit = async () => {
@@ -3220,13 +3181,10 @@ function setUpdateButtonState(state){
   }
 }
 
-/* ---------- atualização do app ---------- */
 let updateBusy = false;
 let reloadingForUpdate = false;
 let lastBgCheck = 0;
 
-// Recarrega com um parâmetro descartável na URL: assim o navegador não reaproveita
-// cópias em cache do index.html/app.js (um simples reload() pode reaproveitar).
 function reloadOnce(){
   if(reloadingForUpdate) return;
   reloadingForUpdate = true;
@@ -3238,7 +3196,6 @@ function reloadOnce(){
     window.location.reload();
   }
 }
-// tira o parâmetro descartável da barra de endereço depois de carregar
 try {
   const cleanUrl = new URL(window.location.href);
   if(cleanUrl.searchParams.has("_u")){
@@ -3247,7 +3204,6 @@ try {
   }
 } catch(e){}
 
-// Envia uma mensagem ao service worker e espera a resposta (ou desiste no timeout).
 function swRequest(worker, msg, timeoutMs){
   return new Promise((resolve) => {
     if(!worker){ resolve(null); return; }
@@ -3259,7 +3215,6 @@ function swRequest(worker, msg, timeoutMs){
   });
 }
 
-// Espera um service worker que está instalando terminar (ou falhar).
 function waitInstalled(worker, timeoutMs){
   return new Promise((resolve) => {
     if(!worker || worker.state === "installed" || worker.state === "activated" || worker.state === "redundant"){ resolve(); return; }
@@ -3273,8 +3228,6 @@ function waitInstalled(worker, timeoutMs){
   });
 }
 
-// Ativa o service worker que está esperando; o "controllerchange" recarrega a página.
-// O timeout garante o recarregamento mesmo se o iOS não disparar o evento.
 function applyWaitingUpdate(reg){
   if(reg && reg.waiting){
     reg.waiting.postMessage("SKIP_WAITING");
@@ -3284,8 +3237,6 @@ function applyWaitingUpdate(reg){
   }
 }
 
-// Pede ao service worker para rebaixar os arquivos do app direto do servidor
-// (ignorando qualquer cache) e diz se algo mudou em relação ao que está aberto.
 async function checkAssetsChanged(){
   const worker = (swRegistration && swRegistration.active) || navigator.serviceWorker.controller;
   const res = await swRequest(worker, { type: "REFRESH_ASSETS" }, 20000);
@@ -3308,7 +3259,6 @@ async function checkForUpdate(){
   setUpdateButtonState("loading");
   haptic(6);
   try {
-    // 1) a versão do service worker mudou (sw.js novo)?
     try { await swRegistration.update(); } catch(e){}
     if(swRegistration.installing) await waitInstalled(swRegistration.installing, 15000);
     if(swRegistration.waiting){
@@ -3317,7 +3267,6 @@ async function checkForUpdate(){
       applyWaitingUpdate(swRegistration);
       return;
     }
-    // 2) o sw.js é igual, mas index.html / app.js / ícones mudaram?
     const changed = await checkAssetsChanged();
     if(changed === true){
       setUpdateButtonState("available");
@@ -3341,15 +3290,13 @@ async function checkForUpdate(){
   }
 }
 
-// Verificação silenciosa ao voltar para o app (no iPhone o app fica "congelado"
-// em segundo plano e não recarrega sozinho). Só mostra o aviso, nunca recarrega sozinho.
 async function backgroundUpdateCheck(){
   if(!swRegistration || updateBusy || updateAvailable) return;
   const now = Date.now();
   if(now - lastBgCheck < 3 * 60 * 1000) return;
   lastBgCheck = now;
   try { await swRegistration.update(); } catch(e){ return; }
-  if(swRegistration.waiting || swRegistration.installing) return; // os listeners mostram o aviso
+  if(swRegistration.waiting || swRegistration.installing) return;
   const changed = await checkAssetsChanged();
   if(changed === true && !updateAvailable){
     updateAvailable = { reload: true };
@@ -3357,8 +3304,6 @@ async function backgroundUpdateCheck(){
   }
 }
 
-// Última alternativa: apaga o cache e o service worker e recarrega.
-// NÃO mexe nos seus treinos/histórico (ficam no localStorage).
 async function hardRefreshApp(){
   try {
     if("serviceWorker" in navigator){
@@ -3395,7 +3340,6 @@ function attachHandlers(){
     if(a.state === "running" || a.state === "paused"){
       letter = a.letter;
     } else {
-      // pega a última sessão do dia se houver, senão o próximo do ciclo
       const arr = sessionsFor(todayKey());
       letter = arr.length ? arr[arr.length - 1].letter : nextWorkoutLetter();
     }
@@ -3486,7 +3430,6 @@ function attachHandlers(){
       if(state.settings.collapsedSections[id]) delete state.settings.collapsedSections[id];
       else state.settings.collapsedSections[id] = true;
       render();
-      // mantém o cabeçalho tocado no mesmo lugar da tela, sem "pulo"
       const again = document.querySelector(`[data-role="togglesection"][data-section="${id}"]`);
       if(again) window.scrollBy(0, again.getBoundingClientRect().top - before);
       await persist();
@@ -3882,7 +3825,6 @@ function nextAvailableLetter(){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async () => {
     try{
-      // updateViaCache:"none" → o navegador nunca usa cache HTTP ao checar o sw.js
       const reg = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
       swRegistration = reg;
       if(reg.waiting && navigator.serviceWorker.controller){
