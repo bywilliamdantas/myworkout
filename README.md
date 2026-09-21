@@ -3,6 +3,7 @@
 App para organizar seus treinos A/B/C, saber qual treino fazer hoje (ciclo
 automático), marcar como feito e acompanhar o histórico. Funciona como PWA:
 depois de publicado, instala no iPhone e se comporta como um app nativo.
+Agora tem tela de login e navegação por abas, no estilo de app nativo.
 
 ## Estrutura
 
@@ -12,6 +13,8 @@ meus-treinos/
 ├── app.js          → toda a lógica do app
 ├── manifest.json   → configuração do PWA
 ├── sw.js           → service worker (uso offline + atualização)
+├── users.json      → lista de usuários e senhas (você edita à mão)
+├── gerar-hash.html → ferramenta offline para gerar linhas do users.json
 ├── icons/
 │   ├── icon-192.png
 │   ├── icon-512.png
@@ -20,10 +23,66 @@ meus-treinos/
 ```
 
 Os dados (treinos, exercícios e histórico) ficam salvos no `localStorage` do
-navegador do seu iPhone — não há servidor. Use **"Exportar backup"** dentro
-do app de vez em quando para não perder o histórico caso troque de aparelho.
+navegador do seu iPhone, **separados por usuário logado** — não há servidor.
+Use **Ajustes → Dados e backup → Exportar** de vez em quando para não perder
+o histórico caso troque de aparelho.
+
+## Login
+
+O acesso ao app agora exige login. Isso **não é segurança de verdade** — é
+só uma barreira simples contra alguém pegar seu iPhone destravado e abrir o
+app sem querer, ou contra visitas casuais ao link público. Qualquer pessoa
+com acesso ao código-fonte (por exemplo, olhando o repositório no GitHub)
+consegue ver a lista de usuários e os hashes. Não reutilize uma senha que
+você usa em outro lugar importante.
+
+**Para adicionar ou trocar um usuário:**
+
+1. Abra `gerar-hash.html` (pode ser direto do seu computador, sem precisar
+   estar publicado — é uma página offline).
+2. Preencha usuário, nome, senha (o salt já vem preenchido, pode deixar).
+3. Toque em "Gerar linha para users.json" e depois em "Copiar".
+4. Abra `users.json` no GitHub (ícone de lápis) e cole o objeto copiado
+   dentro do array `"users"`, separando por vírgula dos usuários existentes.
+5. Suba a alteração (commit). Da próxima vez que o app checar atualização
+   (ou você tocar em Ajustes → Atualizar), o novo usuário passa a funcionar.
+
+O `users.json` de exemplo já vem com o usuário **demo** / senha **demo123**
+— troque ou remova antes de usar de verdade.
+
+Marcar **"Manter conectado"** na tela de login guarda a sessão no aparelho
+(sobrevive a fechar o app); sem marcar, a sessão dura só enquanto a aba/app
+está aberto.
 
 ## Novidades desta versão
+
+**Rodada 6 (v4.0) — abas, login e dados por usuário**
+- **Navegação por abas**: barra fixa embaixo (Início, Treinos, Histórico,
+  Progresso, Ajustes), estilo app nativo, com roteamento por hash
+  (`#/inicio`, `#/treinos`...) para o gesto de voltar do iOS funcionar. O
+  timer de descanso e as folhas (overlays) continuam funcionando por cima
+  de qualquer aba.
+- **Início redesenhado**: saudação com seu nome e a data, card do treino de
+  hoje, sequência/semana/mês, 7 bolinhas mostrando os dias da semana em que
+  você treinou, atalho para o último recorde batido, e atalhos rápidos para
+  registrar peso ou ver o histórico.
+- **Abas refinadas**: Treinos e Histórico ganharam título próprio e
+  perderam o botão "Ocultar" (não faz mais sentido, cada uma já tem tela
+  própria); Histórico ganhou uma lista das sessões do mês, além do
+  calendário; Ajustes foi reorganizado em blocos "Conta", "Treino",
+  "Aparência" e "Dados e backup". O botão "Ocultar" continua existindo
+  dentro de Progresso (Estatísticas, Recordes, Corpo), onde ainda faz
+  sentido esconder um bloco por vez.
+- **Login**: tela de usuário/senha antes do app, validada com
+  `crypto.subtle` contra um `users.json` que você edita à mão (veja a seção
+  "Login" acima), com opção "Manter conectado" e um botão "Sair" em
+  Ajustes → Conta. Sem login, nenhuma tela do app é exibida.
+- **Dados separados por usuário**: cada login tem seu próprio histórico,
+  treinos e backups automáticos. Na primeira vez que qualquer usuário loga
+  nesta versão, os dados antigos (de antes de existir login) são copiados
+  automaticamente para ele, sem apagar a cópia antiga.
+- **Transições suaves** entre abas (respeitando "reduzir movimento" do
+  iOS) e estados vazios amigáveis (ex.: "nenhuma sessão nesse mês").
 
 **Rodada 5 (v3.1)**
 - **Timer de descanso sem piscar**: a barra é montada uma vez e só o número e o anel são atualizados no lugar (antes o HTML era recriado a cada segundo, o que reiniciava a animação). O anel agora avança de forma contínua.
@@ -113,6 +172,44 @@ do app de vez em quando para não perder o histórico caso troque de aparelho.
 - Mais `aria-label`s nos chips e campos da folha de registro.
 - Código dividido em `index.html` (estrutura) e `app.js` (lógica), para
   ficar mais fácil de editar cada parte separadamente.
+
+## Teste do fluxo completo (Rodada 6)
+
+Percorri o código do fluxo login → início → iniciar treino → descanso →
+concluir → progresso → sair com atenção (não tenho como abrir um Safari de
+iPhone de verdade a partir daqui, então isto é uma revisão cuidadosa do
+código, não um teste automatizado rodando no aparelho). O que encontrei:
+
+- **Login**: o formulário valida usuário/senha contra `users.json` via
+  `crypto.subtle.digest`; sem conexão e sem o arquivo em cache, mostra uma
+  mensagem clara em vez de travar. Depois do primeiro login online, o
+  arquivo fica no cache do service worker (rede primeiro, com reserva
+  offline), então logins seguintes funcionam sem internet.
+- **Início → iniciar treino → descanso → concluir**: reaproveita as mesmas
+  funções que já existiam (`startActiveSession`, `startRestTimer`,
+  `endActiveSession`), só mudou onde a tela de resumo é montada — não
+  toquei nessa lógica.
+- **Progresso**: Estatísticas/Recordes/Corpo continuam com o próprio botão
+  Ocultar, exatamente como antes.
+- **Sair**: pede confirmação, limpa a sessão salva e volta para o login sem
+  deixar nenhuma tela do app visível por trás.
+
+**Pontos de atenção que valem seu teste real no iPhone:**
+- Troquei `CACHE_NAME` no `sw.js` e `APP_VERSION` no `app.js` para `v4.0` —
+  depois de publicar, é essa versão que deve aparecer em Ajustes → Dados e
+  backup e que dispara o aviso de atualização em quem já tinha o app
+  instalado.
+- Se você é o único usuário do aparelho, a separação de dados por usuário é
+  transparente (seus dados de antes continuam lá, só que agora "dentro" do
+  seu login). Se mais de uma pessoa usa o mesmo iPhone/Safari, cada uma
+  deve logar com seu próprio usuário para não misturar treinos.
+- O botão "voltar" do iOS entre abas depende do histórico de hashes do
+  navegador; funciona bem para ir e voltar entre abas que você já visitou,
+  mas se você voltar até *antes* da primeira aba visitada nesta sessão, o
+  app reafirma a aba atual no lugar de sair do app — comportamento seguro,
+  mas vale confirmar que não incomoda no uso real.
+- Não implementei um limite de tentativas de senha nem expiração de sessão
+  — de novo, é só uma barreira simples, não segurança de verdade.
 
 ### O que ficou de fora (e por quê)
 

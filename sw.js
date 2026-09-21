@@ -1,20 +1,22 @@
 // Ao publicar uma versão nova, mude CACHE_NAME aqui e APP_VERSION no app.js
 // (mesmo número). Mas mesmo sem mudar, os arquivos são revalidados na rede a
 // cada abertura e o botão "Atualizar" do app detecta qualquer diferença.
-const CACHE_NAME = "meus-treinos-v3.1";
+const CACHE_NAME = "meus-treinos-v4.0";
 
 // Sem estes o app não funciona: se falharem, a instalação é abortada.
 const CORE = [
   "./",
   "./index.html",
   "./app.js",
-  "./manifest.json"
+  "./manifest.json",
+  "./users.json"
 ];
 // Ícones: se algum faltar, não impede a instalação.
 const OPTIONAL = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./icons/apple-touch-icon.png"
+  "./icons/apple-touch-icon.png",
+  "./gerar-hash.html"
 ];
 const ASSETS = CORE.concat(OPTIONAL);
 

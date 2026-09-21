@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerar hash — Meus Treinos</title>
+<style>
+  :root{ color-scheme: dark; }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; padding:24px 16px 60px; background:#000; color:#f5f5f5;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+    display:flex; justify-content:center;
+  }
+  .wrap{ width:100%; max-width:460px; }
+  h1{ font-size:20px; margin:0 0 4px; }
+  p.sub{ color:#a8a8a8; font-size:13px; margin:0 0 24px; line-height:1.5; }
+  .warn{
+    background:rgba(255,90,31,0.12); border:1px solid rgba(255,90,31,0.3);
+    border-radius:12px; padding:12px 14px; font-size:12.5px; color:#ffb27a; margin-bottom:22px; line-height:1.5;
+  }
+  label{ display:block; font-size:12px; color:#a8a8a8; margin:0 0 6px; }
+  input{
+    width:100%; background:#161616; border:1px solid rgba(255,255,255,0.1); color:#f5f5f5;
+    border-radius:10px; padding:11px 12px; font-size:14px; font-family:inherit; margin-bottom:16px;
+  }
+  input:focus{ outline:none; border-color:#ff5a1f; }
+  .row{ display:flex; gap:10px; }
+  .row > div{ flex:1; }
+  button{
+    width:100%; background:#ff5a1f; color:#0a0a0a; border:none; border-radius:12px;
+    padding:13px; font-size:15px; font-weight:700; font-family:inherit; margin-top:4px;
+  }
+  button:active{ opacity:0.85; }
+  .out-label{ font-size:12px; color:#a8a8a8; margin:22px 0 8px; }
+  textarea{
+    width:100%; min-height:140px; background:#0d0d0d; border:1px solid rgba(255,255,255,0.1);
+    color:#30d158; border-radius:10px; padding:12px; font-size:12.5px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    resize:vertical; white-space:pre;
+  }
+  .copy-btn{ background:#161616; color:#f5f5f5; border:1px solid rgba(255,255,255,0.1); margin-top:8px; }
+  .hint{ font-size:11.5px; color:#7d7d7d; margin-top:6px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Gerar hash para users.json</h1>
+  <p class="sub">Página offline: nada aqui é enviado para nenhum servidor. Tudo roda no seu navegador.</p>
+  <div class="warn">Isto é só uma barreira simples contra acesso casual, não é segurança de verdade. Qualquer pessoa com acesso ao código-fonte pode ver o conteúdo do app. Não use senhas que você usa em outros lugares.</div>
+
+  <label for="username">Usuário (username)</label>
+  <input type="text" id="username" placeholder="ex: william" autocapitalize="off" autocorrect="off" spellcheck="false">
+
+  <label for="name">Nome de exibição</label>
+  <input type="text" id="name" placeholder="ex: William">
+
+  <div class="row">
+    <div>
+      <label for="password">Senha</label>
+      <input type="password" id="password">
+    </div>
+    <div>
+      <label for="salt">Salt</label>
+      <input type="text" id="salt" placeholder="gerado automaticamente">
+    </div>
+  </div>
+  <div class="hint">O salt já vem preenchido com um valor aleatório — pode deixar como está ou trocar por qualquer texto.</div>
+
+  <button id="genBtn">Gerar linha para users.json</button>
+
+  <div class="out-label">Cole isto dentro do array "users" do seu users.json:</div>
+  <textarea id="out" readonly placeholder="…aparece aqui depois de gerar"></textarea>
+  <button class="copy-btn" id="copyBtn">Copiar</button>
+</div>
+
+<script>
+  function randomSalt(){
+    const bytes = new Uint8Array(6);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+  document.getElementById("salt").value = randomSalt();
+
+  async function sha256Hex(str){
+    const enc = new TextEncoder().encode(str);
+    const buf = await crypto.subtle.digest("SHA-256", enc);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  document.getElementById("genBtn").addEventListener("click", async () => {
+    const username = document.getElementById("username").value.trim();
+    const name = document.getElementById("name").value.trim() || username;
+    const password = document.getElementById("password").value;
+    const salt = document.getElementById("salt").value.trim();
+    const out = document.getElementById("out");
+    if(!username || !password || !salt){
+      out.value = "Preencha usuário, senha e salt antes de gerar.";
+      return;
+    }
+    const hash = await sha256Hex(salt + password);
+    const obj = { username, name, salt, hash };
+    out.value = JSON.stringify(obj, null, 2) + ",";
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+    const out = document.getElementById("out");
+    if(!out.value) return;
+    try{
+      await navigator.clipboard.writeText(out.value);
+      const btn = document.getElementById("copyBtn");
+      const old = btn.textContent;
+      btn.textContent = "Copiado!";
+      setTimeout(() => { btn.textContent = old; }, 1400);
+    }catch(e){
+      out.select();
+      document.execCommand("copy");
+    }
+  });
+</script>
+</body>
+</html>

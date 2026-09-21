@@ -1,9 +1,133 @@
 const STORAGE_KEY = "gym-data";
 const THEME_KEY = "gym-theme";
-const APP_VERSION = "v3.1";
+const APP_VERSION = "v4.0";
 const SCHEMA_VERSION = 3;
 const AUTOBACKUP_KEY = "gym-autobackups";
 const AUTOBACKUP_MAX = 5;
+const SESSION_KEY = "gym-session";
+const USERS_URL = "users.json";
+
+/* ---------- login / usuário / dados por usuário ---------- */
+let currentUser = null; // {username, name} ou null
+let authError = "";
+let authBusy = false;
+let activeTab = "inicio";
+const TABS = ["inicio", "treinos", "historico", "progresso", "ajustes"];
+
+function storageKey(){ return currentUser ? `${STORAGE_KEY}:${currentUser.username}` : STORAGE_KEY; }
+function autobackupKey(){ return currentUser ? `${AUTOBACKUP_KEY}:${currentUser.username}` : AUTOBACKUP_KEY; }
+
+function migrateUserDataIfNeeded(username){
+  // Na primeira vez que um usuário loga depois desta atualização, copia os
+  // dados da chave antiga (sem usuário) para a chave dele, sem apagar a antiga.
+  try{
+    const newKey = `${STORAGE_KEY}:${username}`;
+    const newAb = `${AUTOBACKUP_KEY}:${username}`;
+    if(window.localStorage.getItem(newKey) == null){
+      const old = window.localStorage.getItem(STORAGE_KEY);
+      if(old != null) window.localStorage.setItem(newKey, old);
+    }
+    if(window.localStorage.getItem(newAb) == null){
+      const oldAb = window.localStorage.getItem(AUTOBACKUP_KEY);
+      if(oldAb != null) window.localStorage.setItem(newAb, oldAb);
+    }
+  }catch(e){}
+}
+
+async function sha256Hex(str){
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function fetchUsers(){
+  try{
+    const res = await fetch(USERS_URL, { cache: "no-cache" });
+    if(!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data && data.users) ? data.users : null;
+  }catch(e){ return null; }
+}
+
+async function tryLogin(username, password){
+  username = (username || "").trim();
+  if(!username || !password) return { ok: false, msg: "Preencha usuário e senha." };
+  const users = await fetchUsers();
+  if(!users) return { ok: false, msg: "Não foi possível verificar o login (sem conexão e sem dados salvos ainda)." };
+  const u = users.find(x => x.username === username);
+  if(!u) return { ok: false, msg: "Usuário ou senha inválidos." };
+  let hash;
+  try{ hash = await sha256Hex((u.salt || "") + password); }catch(e){ return { ok: false, msg: "Não foi possível verificar a senha neste navegador." }; }
+  if(hash !== u.hash) return { ok: false, msg: "Usuário ou senha inválidos." };
+  return { ok: true, user: { username: u.username, name: u.name || u.username } };
+}
+
+function readSession(){
+  try{
+    const raw = window.localStorage.getItem(SESSION_KEY) || window.sessionStorage.getItem(SESSION_KEY);
+    if(!raw) return null;
+    const s = JSON.parse(raw);
+    if(s && s.username) return { username: s.username, name: s.name || s.username };
+  }catch(e){}
+  return null;
+}
+function writeSession(user, keep){
+  const raw = JSON.stringify({ username: user.username, name: user.name });
+  try{
+    if(keep){ window.localStorage.setItem(SESSION_KEY, raw); window.sessionStorage.removeItem(SESSION_KEY); }
+    else { window.sessionStorage.setItem(SESSION_KEY, raw); window.localStorage.removeItem(SESSION_KEY); }
+  }catch(e){}
+}
+function clearSession(){
+  try{ window.localStorage.removeItem(SESSION_KEY); window.sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+
+async function doLogin(username, password, keep){
+  authBusy = true; authError = ""; renderLogin();
+  const r = await tryLogin(username, password);
+  authBusy = false;
+  if(!r.ok){ authError = r.msg; renderLogin(); return; }
+  migrateUserDataIfNeeded(r.user.username);
+  currentUser = r.user;
+  writeSession(r.user, keep);
+  authError = "";
+  activeTab = getTabFromHash() || "inicio";
+  await bootApp();
+}
+
+function doLogout(){
+  clearSession();
+  currentUser = null;
+  authError = "";
+  overlay = null;
+  try{ window.location.hash = ""; }catch(e){}
+  renderLogin();
+}
+
+/* ---------- roteador de abas (hash) ---------- */
+function getTabFromHash(){
+  const h = (window.location.hash || "").replace(/^#\/?/, "");
+  return TABS.includes(h) ? h : null;
+}
+function goTab(tab, opts){
+  if(!TABS.includes(tab)) return;
+  activeTab = tab;
+  try{ window.location.hash = "/" + tab; }catch(e){}
+  render();
+  if(!opts || !opts.keepScroll){
+    const scroller = document.getElementById("app");
+    if(scroller) scroller.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }
+}
+function initRouter(){
+  window.addEventListener("hashchange", () => {
+    if(!currentUser) return;
+    const t = getTabFromHash();
+    if(t && t !== activeTab){ activeTab = t; render(); window.scrollTo(0, 0); }
+    else if(!t){ try{ window.location.hash = "/" + activeTab; }catch(e){} }
+  });
+}
 const KG_PER_LB = 0.45359237;
 const SET_TYPES = ["normal", "warm", "drop", "fail"];
 const SET_TYPE_LABEL = { normal: "", warm: "A", drop: "D", fail: "F" };
@@ -355,7 +479,7 @@ async function withRetry(fn, attempts=3, baseDelay=250){
 
 async function loadData(){
   try{
-    const raw = await withRetry(() => window.localStorage.getItem(STORAGE_KEY), 3, 200);
+    const raw = await withRetry(() => window.localStorage.getItem(storageKey()), 3, 200);
     if(raw){
       const parsed = JSON.parse(raw);
       if(parsed && parsed.order && parsed.workouts){
@@ -378,7 +502,7 @@ async function persist(){
   saveInFlight = true;
   updateSyncUI("busy");
   try{
-    await withRetry(() => window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)), 3, 250);
+    await withRetry(() => window.localStorage.setItem(storageKey(), JSON.stringify(state)), 3, 250);
     saveInFlight = false;
     updateSyncUI("ok");
   }catch(e){
@@ -769,7 +893,7 @@ async function requestPersistentStorage(){
 /* ---------- backups automáticos (rotativos, dentro do app) ---------- */
 function readAutoBackups(){
   try{
-    const list = JSON.parse(window.localStorage.getItem(AUTOBACKUP_KEY) || "[]");
+    const list = JSON.parse(window.localStorage.getItem(autobackupKey()) || "[]");
     return Array.isArray(list) ? list : [];
   }catch(e){ return []; }
 }
@@ -777,7 +901,7 @@ function writeAutoBackups(list){
   const copy = list.slice(0, AUTOBACKUP_MAX);
   while(copy.length){
     try{
-      window.localStorage.setItem(AUTOBACKUP_KEY, JSON.stringify(copy));
+      window.localStorage.setItem(autobackupKey(), JSON.stringify(copy));
       return true;
     }catch(e){
       copy.pop(); // sem espaço: descarta o mais antigo e tenta de novo
@@ -1008,7 +1132,10 @@ function isCollapsed(id){
   const c = state.settings.collapsedSections;
   return !!(c && c[id]);
 }
-function sectionHeader(id, title, first){
+function sectionHeader(id, title, first, noToggle){
+  if(noToggle){
+    return `<p class="section-title${first ? "" : " spaced-title"}">${title}</p>`;
+  }
   const c = isCollapsed(id);
   return `<div class="section-title-row${first ? "" : " spaced"}">
     <p class="section-title" style="margin:0;">${title}</p>
@@ -1016,6 +1143,9 @@ function sectionHeader(id, title, first){
       ${c ? ICONS.eyeOff + " Mostrar" : ICONS.eye + " Ocultar"}
     </button>
   </div>`;
+}
+function blockHeader(title, first){
+  return `<p class="section-title${first ? "" : " spaced-title"}">${title}</p>`;
 }
 
 function renderStatsCard(){
@@ -1241,6 +1371,7 @@ function renderBackupsOverlay(root){
 }
 
 function render(){
+  if(!currentUser){ renderLogin(); return; }
   const app = document.getElementById("app");
   const next = nextWorkoutLetter();
   const a = state.activeSession;
@@ -1270,9 +1401,7 @@ function render(){
     const daysTxt = backupDays === Infinity ? "Você ainda não exportou um backup" : `Já fazem ${Math.floor(backupDays)} dias sem backup`;
     banners += `<div class="banner info"><span>${daysTxt}.</span><button id="backupNowBtn">exportar</button></div>`;
   }
-
-  let html = "";
-  if(banners) html += `<div class="banners">${banners}</div>`;
+  const bannersHtml = banners ? `<div class="banners">${banners}</div>` : "";
 
   const todayDuration = totalDurationForDay(todayKey());
 
@@ -1295,7 +1424,7 @@ function render(){
         ? "toque no ícone para registrar"
         : "pronto para começar";
 
-  html += `<div class="card" id="heroCard">
+  const heroHtml = `<div class="card" id="heroCard">
     <p class="eyebrow">${eyebrowText} · ${weekdayLabel}</p>
     <div class="hero-head">
       <button class="status-btn ${statusCls}" id="statusBtn" aria-label="Abrir séries do treino">
@@ -1324,87 +1453,131 @@ function render(){
       : ""}
   </div>`;
 
-  html += `<div class="card stats-card">
+  const statsRowHtml = `<div class="card stats-card">
     <div class="stat streak"><div class="stat-num" data-count="${streak}">0</div><div class="stat-label">dias seguidos</div></div>
     <div class="stat"><div class="stat-num" data-count="${thisWeek}">0</div><div class="stat-label">essa semana</div></div>
     <div class="stat"><div class="stat-num" data-count="${total}">0</div><div class="stat-label">no mês</div></div>
   </div>`;
 
-  html += sectionHeader("workouts", "Meus treinos", true);
+  /* ---------- Início: saudação, bolinhas da semana e último recorde ---------- */
+  const hour = now.getHours();
+  const greetWord = hour < 5 ? "Boa madrugada" : hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
+  const dateLabel = `${weekdayLabel}, ${now.getDate()} de ${MONTH_NAMES_FULL[now.getMonth()]}`;
+  const greetHtml = `<div class="greet-row">
+    <div>
+      <div class="greet-hello">${greetWord}, ${escapeHtml(currentUser.name || "Treinador")}</div>
+      <div class="greet-date">${dateLabel}</div>
+    </div>
+  </div>`;
 
-  if(!isCollapsed("workouts")){
-    state.order.forEach((key, idx) => {
-      const w = state.workouts[key];
-      const color = colorFor(key, state.order);
-      html += `<div class="card workout-card" data-letter="${key}">
-        <div class="workout-head">
-          <div class="reorder-btns">
-            <button class="reorder-btn" data-role="moveup" data-letter="${key}" ${idx===0?"disabled":""} aria-label="mover para cima">${ICONS.up}</button>
-            <button class="reorder-btn" data-role="movedown" data-letter="${key}" ${idx===state.order.length-1?"disabled":""} aria-label="mover para baixo">${ICONS.down}</button>
-          </div>
-          <div class="workout-chip" style="background:${color}${w.isRest?";color:#f5f5f5":""}">${w.isRest ? ICONS.moonSmall : key}</div>
-          <input class="workout-title-input" data-role="wname" data-letter="${key}" value="${escapeAttr(w.name)}" placeholder="${w.isRest ? "Nome do descanso" : "Nome do treino"}" aria-label="Nome de ${w.isRest ? "descanso" : "treino " + key}">
-          <span class="edit-pencil">${ICONS.pencil}</span>
-          ${w.isRest ? "" : `<button class="icon-btn" data-role="dupworkout" data-letter="${key}" aria-label="duplicar treino ${key}">${ICONS.copy}</button>`}
-          ${state.order.length > 1 ? `<button class="icon-btn" data-role="delworkout" data-letter="${key}" aria-label="remover ${w.isRest ? "descanso" : "treino " + key}">${ICONS.close}</button>` : ""}
-        </div>
-        ${w.isRest ? `<div class="rest-note">Dia de descanso — sem exercícios para registrar.</div>` : `
-        ${w.exercises.length > 0 ? w.exercises.map((ex, exIdx) => {
-          const cardio = isCardio(ex);
-          const hasHist = exerciseHistory(ex.id).length > 0;
-          return `
-          <div class="exercise-row${(isLinkedNext(w, exIdx) || (exIdx > 0 && isLinkedNext(w, exIdx - 1))) ? " linked" : ""}" data-exid="${ex.id}">
-            <div class="ex-row-top">
-              <button type="button" class="ex-name-input ex-name-btn" data-role="openexname" data-letter="${key}" data-exid="${ex.id}" aria-label="Escolher nome do exercício">
-                <span class="ex-name-text ${ex.name ? "" : "placeholder"}">${ex.name ? escapeHtml(ex.name) : (cardio ? "Escolher exercício (Esteira, Bike...)" : "Escolher exercício")}</span>
-                ${ICONS.pencil}
-              </button>
-              <button class="progress-btn" data-role="viewprogress" data-exid="${ex.id}" data-name="${escapeAttr(ex.name || "Exercício")}" ${hasHist ? "" : "disabled"} aria-label="Ver progresso">${ICONS.chart}</button>
-              <button class="ex-del" data-role="delex" data-letter="${key}" data-exid="${ex.id}" aria-label="remover exercício">${ICONS.close}</button>
-            </div>
-            <div class="ex-type-toggle">
-              <button class="ex-type-btn ${cardio ? "" : "active"}" data-role="extype" data-letter="${key}" data-exid="${ex.id}" data-type="strength">${ICONS.dumbbell} Força</button>
-              <button class="ex-type-btn ${cardio ? "active" : ""}" data-role="extype" data-letter="${key}" data-exid="${ex.id}" data-type="cardio">${ICONS.cardio} Cardio</button>
-            </div>
-            <div class="ex-tools">
-              <button class="tool-btn icon" data-role="exmove" data-dir="-1" data-letter="${key}" data-exid="${ex.id}" ${exIdx === 0 ? "disabled" : ""} aria-label="mover exercício para cima">${ICONS.up}</button>
-              <button class="tool-btn icon" data-role="exmove" data-dir="1" data-letter="${key}" data-exid="${ex.id}" ${exIdx === w.exercises.length - 1 ? "disabled" : ""} aria-label="mover exercício para baixo">${ICONS.down}</button>
-              ${exIdx < w.exercises.length - 1 ? `<button class="tool-btn ${ex.ss ? "active" : ""}" data-role="exss" data-letter="${key}" data-exid="${ex.id}" aria-pressed="${!!ex.ss}">Superset com o próximo</button>` : ""}
-              <button class="tool-btn ${ex.link ? "active" : ""}" data-role="exlink" data-letter="${key}" data-exid="${ex.id}" aria-label="link de vídeo ou técnica">${ICONS.link} Link</button>
-            </div>
-            ${cardio ? `
-              <div class="ex-row-bottom">
-                <label class="ex-field"><span>minutos</span><input data-role="exmins" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.mins || "")}" placeholder="30" inputmode="numeric" aria-label="Minutos"></label>
-              </div>
-            ` : `
-              <div class="ex-row-bottom">
-                <label class="ex-field"><span>séries</span><input data-role="exsets" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.sets)}" placeholder="4" inputmode="numeric" aria-label="Séries"></label>
-                <label class="ex-field"><span>reps</span><input data-role="exreps" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.reps)}" placeholder="12" inputmode="numeric" aria-label="Repetições"></label>
-                <label class="ex-field"><span>descanso (s)</span><input data-role="exrest" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.rest || "")}" placeholder="90" inputmode="numeric" aria-label="Descanso em segundos"></label>
-              </div>
-            `}
-          </div>`;
-        }).join("") : `<div class="empty-state">
-            <div class="empty-icon">${ICONS.dumbbell}</div>
-            <p class="empty-title">Nenhum exercício ainda</p>
-            <p class="empty-sub">Toque em "Adicionar exercício" para começar a montar este treino.</p>
-          </div>`}
-        <button class="add-exercise-btn" data-role="addex" data-letter="${key}">${ICONS.plus} Adicionar exercício</button>
-        `}
-      </div>`;
-    });
-
-    html += `<div class="row-2">
-      <button class="add-workout-btn" id="addWorkoutBtn">${ICONS.plus} Novo treino</button>
-      <button class="add-workout-btn" id="addRestBtn">${ICONS.moonSmall} Descanso</button>
+  const weekDayShort = ["D","S","T","Q","Q","S","S"];
+  const wOffset = state.settings.weekStartsMonday ? (now.getDay() === 0 ? 6 : now.getDay() - 1) : now.getDay();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - wOffset); weekStart.setHours(0,0,0,0);
+  let weekDotsHtml = `<div class="card week-dots-card">
+    <p class="section-title" style="margin:0 0 10px;">Essa semana</p>
+    <div class="week-dots">`;
+  for(let i=0;i<7;i++){
+    const d = new Date(weekStart); d.setDate(weekStart.getDate()+i);
+    const dk = dateKeyFromDate(d);
+    const done = sessionsFor(dk).length > 0;
+    const isToday = dk === todayKey();
+    const idx = state.settings.weekStartsMonday ? (i+1)%7 : i;
+    weekDotsHtml += `<div class="week-dot-col">
+      <span class="week-dot-label">${weekDayShort[idx]}</span>
+      <span class="week-dot ${done ? "done" : ""} ${isToday ? "today" : ""}">${done ? ICONS.checkSm : ""}</span>
     </div>`;
   }
+  weekDotsHtml += `</div></div>`;
 
-  html += sectionHeader("history", "Histórico");
-  if(!isCollapsed("history")){
+  const allRecords = collectRecords().slice().sort((x, y) => y.pr.maxWeightDate < x.pr.maxWeightDate ? -1 : (y.pr.maxWeightDate > x.pr.maxWeightDate ? 1 : 0));
+  const lastRecord = allRecords[0] || null;
+  const lastRecordHtml = lastRecord ? `<button type="button" class="card last-record-card" id="goLastRecord">
+    <span class="record-ico">${ICONS.trophy}</span>
+    <span style="flex:1;min-width:0;text-align:left;">
+      <span class="lr-title">Último recorde batido</span>
+      <span class="lr-name">${escapeHtml(lastRecord.ex.name)} · ${fmtW(lastRecord.pr.maxWeight)} ${unit()}${lastRecord.pr.maxWeightReps ? " × " + lastRecord.pr.maxWeightReps : ""}</span>
+    </span>
+    <span class="lr-arrow">${ICONS.right}</span>
+  </button>` : "";
+
+  const quickActionsHtml = `<div class="quick-actions">
+    <button type="button" class="quick-action-btn" id="qaWeight">${ICONS.chart}<span>Registrar peso</span></button>
+    <button type="button" class="quick-action-btn" id="qaHistory">${ICONS.timer}<span>Ver histórico</span></button>
+  </div>`;
+
+  const homeHtml = `${greetHtml}${bannersHtml}${heroHtml}${statsRowHtml}${weekDotsHtml}${lastRecordHtml}${quickActionsHtml}`;
+
+  /* ---------- Treinos ---------- */
+  let workoutsHtml = "";
+  state.order.forEach((key, idx) => {
+    const w = state.workouts[key];
+    const color = colorFor(key, state.order);
+    workoutsHtml += `<div class="card workout-card" data-letter="${key}">
+      <div class="workout-head">
+        <div class="reorder-btns">
+          <button class="reorder-btn" data-role="moveup" data-letter="${key}" ${idx===0?"disabled":""} aria-label="mover para cima">${ICONS.up}</button>
+          <button class="reorder-btn" data-role="movedown" data-letter="${key}" ${idx===state.order.length-1?"disabled":""} aria-label="mover para baixo">${ICONS.down}</button>
+        </div>
+        <div class="workout-chip" style="background:${color}${w.isRest?";color:#f5f5f5":""}">${w.isRest ? ICONS.moonSmall : key}</div>
+        <input class="workout-title-input" data-role="wname" data-letter="${key}" value="${escapeAttr(w.name)}" placeholder="${w.isRest ? "Nome do descanso" : "Nome do treino"}" aria-label="Nome de ${w.isRest ? "descanso" : "treino " + key}">
+        <span class="edit-pencil">${ICONS.pencil}</span>
+        ${w.isRest ? "" : `<button class="icon-btn" data-role="dupworkout" data-letter="${key}" aria-label="duplicar treino ${key}">${ICONS.copy}</button>`}
+        ${state.order.length > 1 ? `<button class="icon-btn" data-role="delworkout" data-letter="${key}" aria-label="remover ${w.isRest ? "descanso" : "treino " + key}">${ICONS.close}</button>` : ""}
+      </div>
+      ${w.isRest ? `<div class="rest-note">Dia de descanso — sem exercícios para registrar.</div>` : `
+      ${w.exercises.length > 0 ? w.exercises.map((ex, exIdx) => {
+        const cardio = isCardio(ex);
+        const hasHist = exerciseHistory(ex.id).length > 0;
+        return `
+        <div class="exercise-row${(isLinkedNext(w, exIdx) || (exIdx > 0 && isLinkedNext(w, exIdx - 1))) ? " linked" : ""}" data-exid="${ex.id}">
+          <div class="ex-row-top">
+            <button type="button" class="ex-name-input ex-name-btn" data-role="openexname" data-letter="${key}" data-exid="${ex.id}" aria-label="Escolher nome do exercício">
+              <span class="ex-name-text ${ex.name ? "" : "placeholder"}">${ex.name ? escapeHtml(ex.name) : (cardio ? "Escolher exercício (Esteira, Bike...)" : "Escolher exercício")}</span>
+              ${ICONS.pencil}
+            </button>
+            <button class="progress-btn" data-role="viewprogress" data-exid="${ex.id}" data-name="${escapeAttr(ex.name || "Exercício")}" ${hasHist ? "" : "disabled"} aria-label="Ver progresso">${ICONS.chart}</button>
+            <button class="ex-del" data-role="delex" data-letter="${key}" data-exid="${ex.id}" aria-label="remover exercício">${ICONS.close}</button>
+          </div>
+          <div class="ex-type-toggle">
+            <button class="ex-type-btn ${cardio ? "" : "active"}" data-role="extype" data-letter="${key}" data-exid="${ex.id}" data-type="strength">${ICONS.dumbbell} Força</button>
+            <button class="ex-type-btn ${cardio ? "active" : ""}" data-role="extype" data-letter="${key}" data-exid="${ex.id}" data-type="cardio">${ICONS.cardio} Cardio</button>
+          </div>
+          <div class="ex-tools">
+            <button class="tool-btn icon" data-role="exmove" data-dir="-1" data-letter="${key}" data-exid="${ex.id}" ${exIdx === 0 ? "disabled" : ""} aria-label="mover exercício para cima">${ICONS.up}</button>
+            <button class="tool-btn icon" data-role="exmove" data-dir="1" data-letter="${key}" data-exid="${ex.id}" ${exIdx === w.exercises.length - 1 ? "disabled" : ""} aria-label="mover exercício para baixo">${ICONS.down}</button>
+            ${exIdx < w.exercises.length - 1 ? `<button class="tool-btn ${ex.ss ? "active" : ""}" data-role="exss" data-letter="${key}" data-exid="${ex.id}" aria-pressed="${!!ex.ss}">Superset com o próximo</button>` : ""}
+            <button class="tool-btn ${ex.link ? "active" : ""}" data-role="exlink" data-letter="${key}" data-exid="${ex.id}" aria-label="link de vídeo ou técnica">${ICONS.link} Link</button>
+          </div>
+          ${cardio ? `
+            <div class="ex-row-bottom">
+              <label class="ex-field"><span>minutos</span><input data-role="exmins" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.mins || "")}" placeholder="30" inputmode="numeric" aria-label="Minutos"></label>
+            </div>
+          ` : `
+            <div class="ex-row-bottom">
+              <label class="ex-field"><span>séries</span><input data-role="exsets" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.sets)}" placeholder="4" inputmode="numeric" aria-label="Séries"></label>
+              <label class="ex-field"><span>reps</span><input data-role="exreps" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.reps)}" placeholder="12" inputmode="numeric" aria-label="Repetições"></label>
+              <label class="ex-field"><span>descanso (s)</span><input data-role="exrest" data-letter="${key}" data-exid="${ex.id}" value="${escapeAttr(ex.rest || "")}" placeholder="90" inputmode="numeric" aria-label="Descanso em segundos"></label>
+            </div>
+          `}
+        </div>`;
+      }).join("") : `<div class="empty-state">
+          <div class="empty-icon">${ICONS.dumbbell}</div>
+          <p class="empty-title">Nenhum exercício ainda</p>
+          <p class="empty-sub">Toque em "Adicionar exercício" para começar a montar este treino.</p>
+        </div>`}
+      <button class="add-exercise-btn" data-role="addex" data-letter="${key}">${ICONS.plus} Adicionar exercício</button>
+      `}
+    </div>`;
+  });
+  workoutsHtml += `<div class="row-2">
+    <button class="add-workout-btn" id="addWorkoutBtn">${ICONS.plus} Novo treino</button>
+    <button class="add-workout-btn" id="addRestBtn">${ICONS.moonSmall} Descanso</button>
+  </div>`;
+
+  /* ---------- Histórico ---------- */
   const legendWorkouts = state.order.filter(k => !state.workouts[k]?.isRest);
   const hasRest = state.order.some(k => state.workouts[k]?.isRest);
-  html += `<div class="card">
+  let historyHtml = `<div class="card">
     <div class="legend">
       ${legendWorkouts.map(l => `<div class="legend-item"><span class="legend-dot" style="background:${colorFor(l, state.order)}"></span>${l}</div>`).join("")}
       ${hasRest ? `<div class="legend-item"><span class="legend-dot" style="background:${REST_COLOR}"></span>descanso</div>` : ""}
@@ -1412,117 +1585,160 @@ function render(){
     </div>
     ${buildMonthCalendar(historyMonth)}
   </div>`;
+
+  const monthKeys = Object.keys(state.sessions).filter(k => {
+    const [ky, km] = k.split("-").map(Number);
+    return ky === historyMonth.getFullYear() && km === historyMonth.getMonth() + 1;
+  }).sort().reverse();
+  historyHtml += `<p class="section-title spaced-title">Sessões do mês</p>`;
+  if(!monthKeys.length){
+    historyHtml += `<div class="empty-state">
+      <div class="empty-icon">${ICONS.timer}</div>
+      <p class="empty-title">Nenhuma sessão nesse mês</p>
+      <p class="empty-sub">Os treinos que você concluir vão aparecer aqui.</p>
+    </div>`;
+  } else {
+    historyHtml += `<div class="card month-sessions-card">${monthKeys.map(dk => {
+      const arr = sessionsFor(dk);
+      const [, m, d] = dk.split("-").map(Number);
+      return `<button type="button" class="month-session-row" data-role="openhistoryday" data-datekey="${dk}">
+        <span class="ms-date">${d}/${m}</span>
+        <span class="ms-letters">${arr.map(s => `<span class="ms-chip" style="background:${s.letter && state.workouts[s.letter] && !state.workouts[s.letter].isRest ? colorFor(s.letter, state.order) : REST_COLOR}">${s.letter || "?"}</span>`).join("")}</span>
+        <span class="ms-arrow">${ICONS.right}</span>
+      </button>`;
+    }).join("")}</div>`;
   }
 
-  html += renderStatsCard();
-  html += renderRecordsCard();
-  html += renderBodyCard();
+  /* ---------- Progresso ---------- */
+  const progressHtml = renderStatsCard() + renderRecordsCard() + renderBodyCard();
 
+  /* ---------- Ajustes ---------- */
   const r = state.settings.reminder;
-  html += sectionHeader("reminders", "Lembretes");
-  if(!isCollapsed("reminders")) html += `<div class="card">
-    <label class="reminder-row">
-      <span>Lembrete diário de treino</span>
-      <span class="switch">
-        <input type="checkbox" id="reminderToggle" ${r.enabled ? "checked" : ""} aria-label="Ativar lembrete diário">
-        <span class="slider"></span>
-      </span>
-    </label>
-    <div class="reminder-time-row" id="reminderTimeRow" style="${r.enabled ? "" : "display:none;"}">
-      <span>Horário</span>
-      <input type="time" id="reminderTime" value="${r.time}" aria-label="Horário do lembrete">
-    </div>
-  </div>`;
-
   const themePref = getThemePref();
-  html += sectionHeader("prefs", "Preferências");
-  if(!isCollapsed("prefs")) html += `<div class="card">
-    <div class="reminder-row" style="margin-bottom:14px;">
-      <span>Tema</span>
-    </div>
-    <div class="theme-selector">
-      <button class="theme-opt ${themePref === "light" ? "active" : ""}" data-role="settheme" data-theme="light">${ICONS.sunSmall} Claro</button>
-      <button class="theme-opt ${themePref === "dark" ? "active" : ""}" data-role="settheme" data-theme="dark">${ICONS.moonSmall} Escuro</button>
-      <button class="theme-opt ${themePref === "auto" ? "active" : ""}" data-role="settheme" data-theme="auto">${ICONS.autoSmall} Auto</button>
-    </div>
-    <div class="reminder-row" style="margin-top:14px;">
-      <span>Duração do descanso padrão</span>
-      <div class="step-group" style="max-width:140px;">
-        <button class="step-btn" id="restMinus" aria-label="diminuir">−</button>
-        <div class="step-value" id="restDurationVal">${state.settings.restDuration}s</div>
-        <button class="step-btn" id="restPlus" aria-label="aumentar">+</button>
-      </div>
-    </div>
-    <div class="reminder-row" style="margin-top:14px;">
-      <span>Semana começa na segunda</span>
-      <span class="switch">
-        <input type="checkbox" id="weekStartToggle" ${state.settings.weekStartsMonday ? "checked" : ""} aria-label="Semana começa na segunda">
-        <span class="slider"></span>
-      </span>
-    </div>
-    <div class="reminder-row" style="margin-top:14px;">
-      <span>Unidade de peso</span>
-      <div class="theme-selector" style="max-width:150px;">
-        <button class="theme-opt ${state.settings.unit === "kg" ? "active" : ""}" data-role="setunit" data-unit="kg">kg</button>
-        <button class="theme-opt ${state.settings.unit === "lb" ? "active" : ""}" data-role="setunit" data-unit="lb">lb</button>
-      </div>
-    </div>
-    <div class="reminder-row" style="margin-top:14px;">
-      <span>Manter a tela ligada no treino</span>
-      <span class="switch">
-        <input type="checkbox" id="keepAwakeToggle" ${state.settings.keepAwake ? "checked" : ""} aria-label="Manter a tela ligada durante o treino">
-        <span class="slider"></span>
-      </span>
-    </div>
-    <div class="reminder-row" style="margin-top:14px;">
-      <div style="display:flex;flex-direction:column;gap:2px;">
-        <span>Versão do app</span>
-        <span id="appVersionText" style="font-size:11px;color:var(--text-muted);">${APP_VERSION}</span>
-      </div>
-      <button class="footer-btn" id="checkUpdateBtn" style="flex:none;padding:9px 14px;">
-        <span id="checkUpdateIcon">${ICONS.refresh}</span>
-        <span id="checkUpdateLabel">Atualizar</span>
-      </button>
-    </div>
-    <div class="reminder-row" style="margin-top:14px;">
-      <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
-        <span>App não atualiza?</span>
-        <span style="font-size:11px;color:var(--text-muted);">Limpa o cache do app e recarrega. Seus treinos e histórico não são apagados.</span>
-      </div>
-      <button class="footer-btn" id="hardRefreshBtn" style="flex:none;padding:9px 14px;">Recarregar</button>
-    </div>
-  </div>`;
-
   const bkDays = daysSince(state.settings.lastBackupAt);
   const bkTxt = bkDays === Infinity ? "nunca" : (bkDays < 1 ? "hoje" : `há ${Math.floor(bkDays)} dia(s)`);
-  html += sectionHeader("data", "Dados e backup");
-  if(!isCollapsed("data")) html += `<div class="card">
-    <div class="reminder-row">
-      <span>Proteção contra limpeza do aparelho</span>
-      <span class="status-pill ${storagePersisted === true ? "ok" : ""}" id="storageStatus">${storageStatusText()}</span>
-    </div>
-    <div class="reminder-row" style="margin-top:14px;">
-      <span>Último backup exportado</span>
-      <span class="status-pill">${bkTxt}</span>
-    </div>
-    <div class="reminder-row" style="margin-top:14px;">
-      <div style="display:flex;flex-direction:column;gap:2px;">
-        <span>Backups automáticos</span>
-        <span style="font-size:11px;color:var(--text-muted);">${readAutoBackups().length} cópia(s) neste aparelho</span>
+
+  const ajustesHtml = `
+    ${blockHeader("Conta", true)}
+    <div class="card">
+      <div class="reminder-row">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <span>${escapeHtml(currentUser.name || currentUser.username)}</span>
+          <span style="font-size:11px;color:var(--text-muted);">@${escapeHtml(currentUser.username)}</span>
+        </div>
+        <button class="footer-btn danger" id="logoutBtn" style="flex:none;padding:9px 14px;">Sair</button>
       </div>
-      <button class="footer-btn" id="openBackupsBtn" style="flex:none;padding:9px 14px;">Ver</button>
     </div>
-  </div>
 
-  <div class="footer-actions" style="margin-top:14px;">
-    <button class="footer-btn" id="exportBtn">${ICONS.download} Exportar</button>
-    <button class="footer-btn" id="exportCsvBtn">${ICONS.download} CSV</button>
-    <button class="footer-btn" id="importBtn">${ICONS.upload} Importar</button>
-  </div>
-  <input type="file" id="importFile" accept="application/json">`;
-  html += `<div class="app-footer">William Dantas - ©2026</div>`;
+    ${blockHeader("Treino")}
+    <div class="card">
+      <label class="reminder-row">
+        <span>Lembrete diário de treino</span>
+        <span class="switch">
+          <input type="checkbox" id="reminderToggle" ${r.enabled ? "checked" : ""} aria-label="Ativar lembrete diário">
+          <span class="slider"></span>
+        </span>
+      </label>
+      <div class="reminder-time-row" id="reminderTimeRow" style="${r.enabled ? "" : "display:none;"}">
+        <span>Horário</span>
+        <input type="time" id="reminderTime" value="${r.time}" aria-label="Horário do lembrete">
+      </div>
+      <div class="reminder-row" style="margin-top:14px;">
+        <span>Duração do descanso padrão</span>
+        <div class="step-group" style="max-width:140px;">
+          <button class="step-btn" id="restMinus" aria-label="diminuir">−</button>
+          <div class="step-value" id="restDurationVal">${state.settings.restDuration}s</div>
+          <button class="step-btn" id="restPlus" aria-label="aumentar">+</button>
+        </div>
+      </div>
+      <div class="reminder-row" style="margin-top:14px;">
+        <span>Semana começa na segunda</span>
+        <span class="switch">
+          <input type="checkbox" id="weekStartToggle" ${state.settings.weekStartsMonday ? "checked" : ""} aria-label="Semana começa na segunda">
+          <span class="slider"></span>
+        </span>
+      </div>
+      <div class="reminder-row" style="margin-top:14px;">
+        <span>Manter a tela ligada no treino</span>
+        <span class="switch">
+          <input type="checkbox" id="keepAwakeToggle" ${state.settings.keepAwake ? "checked" : ""} aria-label="Manter a tela ligada durante o treino">
+          <span class="slider"></span>
+        </span>
+      </div>
+    </div>
 
-  app.innerHTML = html;
+    ${blockHeader("Aparência")}
+    <div class="card">
+      <div class="reminder-row" style="margin-bottom:14px;">
+        <span>Tema</span>
+      </div>
+      <div class="theme-selector">
+        <button class="theme-opt ${themePref === "light" ? "active" : ""}" data-role="settheme" data-theme="light">${ICONS.sunSmall} Claro</button>
+        <button class="theme-opt ${themePref === "dark" ? "active" : ""}" data-role="settheme" data-theme="dark">${ICONS.moonSmall} Escuro</button>
+        <button class="theme-opt ${themePref === "auto" ? "active" : ""}" data-role="settheme" data-theme="auto">${ICONS.autoSmall} Auto</button>
+      </div>
+      <div class="reminder-row" style="margin-top:14px;">
+        <span>Unidade de peso</span>
+        <div class="theme-selector" style="max-width:150px;">
+          <button class="theme-opt ${state.settings.unit === "kg" ? "active" : ""}" data-role="setunit" data-unit="kg">kg</button>
+          <button class="theme-opt ${state.settings.unit === "lb" ? "active" : ""}" data-role="setunit" data-unit="lb">lb</button>
+        </div>
+      </div>
+    </div>
+
+    ${blockHeader("Dados e backup")}
+    <div class="card">
+      <div class="reminder-row">
+        <span>Proteção contra limpeza do aparelho</span>
+        <span class="status-pill ${storagePersisted === true ? "ok" : ""}" id="storageStatus">${storageStatusText()}</span>
+      </div>
+      <div class="reminder-row" style="margin-top:14px;">
+        <span>Último backup exportado</span>
+        <span class="status-pill">${bkTxt}</span>
+      </div>
+      <div class="reminder-row" style="margin-top:14px;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <span>Backups automáticos</span>
+          <span style="font-size:11px;color:var(--text-muted);">${readAutoBackups().length} cópia(s) neste aparelho</span>
+        </div>
+        <button class="footer-btn" id="openBackupsBtn" style="flex:none;padding:9px 14px;">Ver</button>
+      </div>
+      <div class="reminder-row" style="margin-top:14px;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <span>Versão do app</span>
+          <span id="appVersionText" style="font-size:11px;color:var(--text-muted);">${APP_VERSION}</span>
+        </div>
+        <button class="footer-btn" id="checkUpdateBtn" style="flex:none;padding:9px 14px;">
+          <span id="checkUpdateIcon">${ICONS.refresh}</span>
+          <span id="checkUpdateLabel">Atualizar</span>
+        </button>
+      </div>
+      <div class="reminder-row" style="margin-top:14px;">
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
+          <span>App não atualiza?</span>
+          <span style="font-size:11px;color:var(--text-muted);">Limpa o cache do app e recarrega. Seus treinos e histórico não são apagados.</span>
+        </div>
+        <button class="footer-btn" id="hardRefreshBtn" style="flex:none;padding:9px 14px;">Recarregar</button>
+      </div>
+    </div>
+    <div class="footer-actions" style="margin-top:14px;">
+      <button class="footer-btn" id="exportBtn">${ICONS.download} Exportar</button>
+      <button class="footer-btn" id="exportCsvBtn">${ICONS.download} CSV</button>
+      <button class="footer-btn" id="importBtn">${ICONS.upload} Importar</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json">
+    <div class="app-footer">William Dantas - ©2026</div>`;
+
+  /* ---------- monta a aba ativa ---------- */
+  const TAB_TITLES = { treinos: "Treinos", historico: "Histórico", progresso: "Progresso", ajustes: "Ajustes" };
+  let content;
+  if(activeTab === "treinos") content = `<h1 class="tab-title">${TAB_TITLES.treinos}</h1>${workoutsHtml}`;
+  else if(activeTab === "historico") content = `<h1 class="tab-title">${TAB_TITLES.historico}</h1>${historyHtml}`;
+  else if(activeTab === "progresso") content = `<h1 class="tab-title">${TAB_TITLES.progresso}</h1>${progressHtml}`;
+  else if(activeTab === "ajustes") content = `<h1 class="tab-title">${TAB_TITLES.ajustes}</h1>${ajustesHtml}`;
+  else { activeTab = "inicio"; content = homeHtml; }
+
+  app.innerHTML = `<div class="tab-panel" id="tabPanel">${content}</div>`;
   attachHandlers();
   runCountUp();
   renderOverlay();
@@ -1530,6 +1746,7 @@ function render(){
   renderHeroClock();
   startHeroClockTicker();
   syncWakeLock();
+  renderTabBar();
 }
 
 function startHeroClockTicker(){
@@ -2684,7 +2901,7 @@ function renderConfirmOverlay(root){
   const { msg, onYes, yesLabel, noLabel, onNo } = overlay;
   const yesText = yesLabel || "Confirmar";
   const noText = noLabel || "Cancelar";
-  const yesClass = overlay.yesStyle === "accent" ? "footer-btn primary" : "footer-btn";
+  const yesClass = overlay.yesStyle === "accent" ? "footer-btn primary" : (overlay.yesStyle === "danger" ? "footer-btn danger" : "footer-btn");
   root.innerHTML = `<div class="sheet-backdrop" id="sheetBackdrop"></div>
   <div class="sheet" role="dialog" aria-modal="true">
     <div class="sheet-handle"></div>
@@ -2837,6 +3054,98 @@ async function exportCsv(){
   }catch(e){
     showToast("Não foi possível exportar CSV");
   }
+}
+
+/* ---------- barra de abas ---------- */
+const TAB_DEFS = [
+  { id: "inicio", label: "Início", icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>` },
+  { id: "treinos", label: "Treinos", icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M3 9v6M21 9v6M1 10.5v3M23 10.5v3"/></svg>` },
+  { id: "historico", label: "Histórico", icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>` },
+  { id: "progresso", label: "Progresso", icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l3-4 3 3 4-6"/></svg>` },
+  { id: "ajustes", label: "Ajustes", icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.6 1Z"/></svg>` }
+];
+function renderTabBar(){
+  let bar = document.getElementById("tabBar");
+  if(!currentUser){ if(bar) bar.innerHTML = ""; return; }
+  if(!bar) return;
+  bar.innerHTML = TAB_DEFS.map(t => `<button type="button" class="tab-btn ${activeTab === t.id ? "active" : ""}" data-role="gotab" data-tab="${t.id}" aria-label="${t.label}" aria-current="${activeTab === t.id ? "page" : "false"}">
+    <span class="tab-btn-icon">${t.icon}</span>
+    <span class="tab-btn-label">${t.label}</span>
+  </button>`).join("");
+  bar.querySelectorAll('[data-role="gotab"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      if(btn.dataset.tab === activeTab) return;
+      haptic(6);
+      goTab(btn.dataset.tab);
+    });
+  });
+}
+
+/* ---------- tela de login ---------- */
+function renderLogin(){
+  const app = document.getElementById("app");
+  const bar = document.getElementById("tabBar");
+  if(bar) bar.innerHTML = "";
+  if(!app) return;
+  app.innerHTML = `<div class="login-wrap">
+    <div class="login-logo">${ICONS.dumbbell}</div>
+    <h1 class="login-title">Meus Treinos</h1>
+    <p class="login-sub">Entre para ver seus treinos</p>
+    <div class="card login-card">
+      <label class="body-field wide" style="margin-bottom:12px;">
+        <span>Usuário</span>
+        <input type="text" id="loginUser" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </label>
+      <label class="body-field wide" style="margin-bottom:6px;">
+        <span>Senha</span>
+        <div class="pw-wrap">
+          <input type="password" id="loginPass" autocomplete="current-password">
+          <button type="button" class="pw-toggle" id="loginPwToggle" aria-label="mostrar senha">${ICONS.eye}</button>
+        </div>
+      </label>
+      <label class="login-keep-row">
+        <span class="switch">
+          <input type="checkbox" id="loginKeep" checked>
+          <span class="slider"></span>
+        </span>
+        <span>Manter conectado</span>
+      </label>
+      ${authError ? `<div class="login-error">${escapeHtml(authError)}</div>` : ""}
+      <button type="button" class="cta-btn" id="loginSubmit" ${authBusy ? "disabled" : ""} style="width:100%;margin-top:6px;">${authBusy ? "Entrando…" : "Entrar"}</button>
+    </div>
+  </div>`;
+  const userInput = document.getElementById("loginUser");
+  const passInput = document.getElementById("loginPass");
+  const submit = async () => {
+    if(authBusy) return;
+    await doLogin(userInput.value, passInput.value, document.getElementById("loginKeep").checked);
+  };
+  document.getElementById("loginSubmit").addEventListener("click", submit);
+  [userInput, passInput].forEach(inp => inp.addEventListener("keydown", (e) => { if(e.key === "Enter") submit(); }));
+  document.getElementById("loginPwToggle").addEventListener("click", () => {
+    const show = passInput.type === "password";
+    passInput.type = show ? "text" : "password";
+    document.getElementById("loginPwToggle").innerHTML = show ? ICONS.eyeOff : ICONS.eye;
+  });
+  if(userInput && !authBusy) userInput.focus();
+}
+
+async function bootApp(){
+  const app = document.getElementById("app");
+  if(app) app.innerHTML = `<div class="loading">carregando…</div>`;
+  await loadData();
+  takeAutoBackup(false);
+  render();
+  requestPersistentStorage();
+  if(state.settings.restTimerActive){
+    if(state.settings.restTimerActive.endsAt <= Date.now()){
+      state.settings.restTimerActive = null;
+      persist();
+    } else {
+      renderRestTimer();
+    }
+  }
+  checkReminder();
 }
 
 function checkReminder(){
@@ -3115,6 +3424,29 @@ function attachHandlers(){
 
   const backupNowBtn = $("backupNowBtn");
   if(backupNowBtn) backupNowBtn.addEventListener("click", exportBackup);
+
+  const logoutBtn = $("logoutBtn");
+  if(logoutBtn) logoutBtn.addEventListener("click", () => {
+    openConfirm("Sair da sua conta?", doLogout, { yesLabel: "Sair", noLabel: "Cancelar", yesStyle: "danger" });
+  });
+
+  const qaWeight = $("qaWeight");
+  if(qaWeight) qaWeight.addEventListener("click", () => { haptic(6); openBodySheet(); });
+
+  const qaHistory = $("qaHistory");
+  if(qaHistory) qaHistory.addEventListener("click", () => { haptic(6); goTab("historico"); });
+
+  const goLastRecord = $("goLastRecord");
+  if(goLastRecord) goLastRecord.addEventListener("click", () => { haptic(6); goTab("progresso"); });
+
+  document.querySelectorAll('[data-role="openhistoryday"]').forEach(el => {
+    el.addEventListener("click", () => {
+      haptic(6);
+      const dk = el.dataset.datekey;
+      const arr = sessionsFor(dk);
+      if(arr.length >= 2) openDaySessionsSheet(dk); else openDaySheet(dk);
+    });
+  });
 
   document.querySelectorAll('[data-role="togglesection"]').forEach(el => {
     el.addEventListener("click", async () => {
@@ -3477,28 +3809,26 @@ function nextAvailableLetter(){
 
 (async function init(){
   applyTheme(getThemePref());
+  initRouter();
 
   if(!storageAvailable()){
     loadFailed = true;
-    render();
+    currentUser = readSession();
+    if(currentUser) render(); else renderLogin();
     showToast("Armazenamento indisponível (modo privado?).");
     return;
   }
-  await loadData();
-  takeAutoBackup(false);
-  render();
-  requestPersistentStorage();
-  if(state.settings.restTimerActive){
-    if(state.settings.restTimerActive.endsAt <= Date.now()){
-      state.settings.restTimerActive = null;
-      persist();
-    } else {
-      renderRestTimer();
-    }
+
+  currentUser = readSession();
+  if(currentUser){
+    activeTab = getTabFromHash() || "inicio";
+    await bootApp();
+  } else {
+    renderLogin();
   }
-  checkReminder();
+
   document.addEventListener("visibilitychange", () => {
-    if(document.visibilityState === "visible"){
+    if(document.visibilityState === "visible" && currentUser){
       checkReminder();
       renderRestTimer();
       renderHeroClock();
@@ -3506,9 +3836,10 @@ function nextAvailableLetter(){
       backgroundUpdateCheck();
     }
   });
-  setInterval(checkReminder, 5 * 60 * 1000);
+  setInterval(() => { if(currentUser) checkReminder(); }, 5 * 60 * 1000);
   window.addEventListener("beforeunload", () => {
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e){}
+    if(!currentUser) return;
+    try { window.localStorage.setItem(storageKey(), JSON.stringify(state)); } catch(e){}
   });
 
   if(window.matchMedia){
