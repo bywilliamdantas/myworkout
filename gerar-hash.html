@@ -90,7 +90,7 @@
   document.getElementById("genBtn").addEventListener("click", async () => {
     const username = document.getElementById("username").value.trim();
     const name = document.getElementById("name").value.trim() || username;
-    const password = document.getElementById("password").value;
+    const password = document.getElementById("password").value.replace(/^\s+|\s+$/g, "");
     const salt = document.getElementById("salt").value.trim();
     const out = document.getElementById("out");
     if(!username || !password || !salt){

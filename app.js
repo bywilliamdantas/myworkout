@@ -51,10 +51,11 @@ async function fetchUsers(){
 
 async function tryLogin(username, password){
   username = (username || "").trim();
+  password = (password || "").replace(/^\s+|\s+$/g, ""); // remove espaços que o teclado do iPhone às vezes cola sem querer
   if(!username || !password) return { ok: false, msg: "Preencha usuário e senha." };
   const users = await fetchUsers();
   if(!users) return { ok: false, msg: "Não foi possível verificar o login (sem conexão e sem dados salvos ainda)." };
-  const u = users.find(x => x.username === username);
+  const u = users.find(x => x.username.toLowerCase() === username.toLowerCase());
   if(!u) return { ok: false, msg: "Usuário ou senha inválidos." };
   let hash;
   try{ hash = await sha256Hex((u.salt || "") + password); }catch(e){ return { ok: false, msg: "Não foi possível verificar a senha neste navegador." }; }
