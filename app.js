@@ -1,6 +1,6 @@
 const STORAGE_KEY = "gym-data";
 const THEME_KEY = "gym-theme";
-const APP_VERSION = "v4.0";
+const APP_VERSION = "v4.1";
 const SCHEMA_VERSION = 3;
 const AUTOBACKUP_KEY = "gym-autobackups";
 const AUTOBACKUP_MAX = 5;
@@ -587,12 +587,32 @@ function lastSessionEntry(){
   }
   return null;
 }
+function isRestLetter(letter){
+  return !!(letter && state.workouts[letter] && state.workouts[letter].isRest);
+}
+// Igual a lastSessionEntry, mas ignora sessões de descanso: um dia marcado
+// como descanso não deve "consumir" a vez de um treino no ciclo automático.
+function lastNonRestSessionEntry(){
+  const keys = Object.keys(state.sessions).sort();
+  for(let i = keys.length - 1; i >= 0; i--){
+    const arr = sessionsFor(keys[i]);
+    for(let j = arr.length - 1; j >= 0; j--){
+      if(!isRestLetter(arr[j].letter)) return { date: keys[i], letter: arr[j].letter };
+    }
+  }
+  return null;
+}
 function nextWorkoutLetter(){
-  const last = lastSessionEntry();
-  if(!last) return state.order[0];
-  const idx = state.order.indexOf(last.letter);
-  if(idx === -1) return state.order[0];
-  return state.order[(idx + 1) % state.order.length];
+  // O ciclo automático considera só os treinos de verdade (A/B/C...); dias de
+  // descanso ficam de fora da rotação, então marcar um descanso não pula nem
+  // repete um treino.
+  const order = state.order.filter(k => !isRestLetter(k));
+  if(!order.length) return state.order[0];
+  const last = lastNonRestSessionEntry();
+  if(!last) return order[0];
+  const idx = order.indexOf(last.letter);
+  if(idx === -1) return order[0];
+  return order[(idx + 1) % order.length];
 }
 function computeStreak(){
   let cursor = new Date();
@@ -619,7 +639,7 @@ function sessionsThisMonth(){
   let c = 0;
   for(const key of Object.keys(state.sessions)){
     const [ky, km] = key.split("-").map(Number);
-    if(ky === y && km === m) c += sessionsFor(key).length;
+    if(ky === y && km === m) c += sessionsFor(key).filter(s => !isRestLetter(s.letter)).length;
   }
   return c;
 }
@@ -634,7 +654,7 @@ function sessionsThisWeek(){
   for(const key of Object.keys(state.sessions)){
     const [y,m,d] = key.split("-").map(Number);
     const dt = new Date(y, m-1, d);
-    if(dt >= start) c += sessionsFor(key).length;
+    if(dt >= start) c += sessionsFor(key).filter(s => !isRestLetter(s.letter)).length;
   }
   return c;
 }
@@ -1406,9 +1426,11 @@ function render(){
 
   const todayDuration = totalDurationForDay(todayKey());
 
+  const todayIsRest = todayCount > 0 && isRestLetter(todayArr[todayArr.length - 1].letter);
   let eyebrowText = "Próximo";
   if(isRunning) eyebrowText = "Treinando agora";
   else if(isPaused) eyebrowText = "Pausado";
+  else if(todayIsRest) eyebrowText = "Descanso";
   else if(todayCount === 1) eyebrowText = "Treino de hoje";
   else if(todayCount > 1) eyebrowText = todayCount + " treinos hoje";
 
@@ -1480,12 +1502,14 @@ function render(){
   for(let i=0;i<7;i++){
     const d = new Date(weekStart); d.setDate(weekStart.getDate()+i);
     const dk = dateKeyFromDate(d);
-    const done = sessionsFor(dk).length > 0;
+    const dArr = sessionsFor(dk);
+    const done = dArr.some(s => !isRestLetter(s.letter));
+    const restOnly = !done && dArr.length > 0 && dArr.every(s => isRestLetter(s.letter));
     const isToday = dk === todayKey();
     const idx = state.settings.weekStartsMonday ? (i+1)%7 : i;
     weekDotsHtml += `<div class="week-dot-col">
       <span class="week-dot-label">${weekDayShort[idx]}</span>
-      <span class="week-dot ${done ? "done" : ""} ${isToday ? "today" : ""}">${done ? ICONS.checkSm : ""}</span>
+      <span class="week-dot ${done ? "done" : ""} ${restOnly ? "rest" : ""} ${isToday ? "today" : ""}">${done ? ICONS.checkSm : (restOnly ? ICONS.moonSmall : "")}</span>
     </div>`;
   }
   weekDotsHtml += `</div></div>`;
@@ -1604,7 +1628,11 @@ function render(){
       const [, m, d] = dk.split("-").map(Number);
       return `<button type="button" class="month-session-row" data-role="openhistoryday" data-datekey="${dk}">
         <span class="ms-date">${d}/${m}</span>
-        <span class="ms-letters">${arr.map(s => `<span class="ms-chip" style="background:${s.letter && state.workouts[s.letter] && !state.workouts[s.letter].isRest ? colorFor(s.letter, state.order) : REST_COLOR}">${s.letter || "?"}</span>`).join("")}</span>
+        <span class="ms-letters">${arr.map(s => {
+          const isRest = isRestLetter(s.letter);
+          const bg = s.letter && state.workouts[s.letter] && !isRest ? colorFor(s.letter, state.order) : REST_COLOR;
+          return `<span class="ms-chip" style="background:${bg}${isRest ? ";color:#f5f5f5" : ""}">${isRest ? ICONS.moonSmall : (s.letter || "?")}</span>`;
+        }).join("")}</span>
         <span class="ms-arrow">${ICONS.right}</span>
       </button>`;
     }).join("")}</div>`;

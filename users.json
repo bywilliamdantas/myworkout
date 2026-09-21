@@ -1,10 +1,10 @@
 {
   "users": [
     {
-      "username": "demo",
-      "name": "Demo",
-      "salt": "8f3ac1",
-      "hash": "a087cc5d791d5592fc91755c4402308bfc16a57ae5574e036e84326159684c3d"
+      "username": "william",
+      "name": "William",
+      "salt": "f85763b203bd",
+      "hash": "811adc66c903761ea64bc02409adfe9e861a37e76cbace4b124f5980e6e41d3d"
     }
   ]
 }
