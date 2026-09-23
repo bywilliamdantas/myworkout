@@ -1,7 +1,7 @@
 // Ao publicar uma versão nova, mude CACHE_NAME aqui e APP_VERSION no app.js
 // (mesmo número). Mas mesmo sem mudar, os arquivos são revalidados na rede a
 // cada abertura e o botão "Atualizar" do app detecta qualquer diferença.
-const CACHE_NAME = "meus-treinos-v4.1";
+const CACHE_NAME = "meus-treinos-v5.1";
 
 // Sem estes o app não funciona: se falharem, a instalação é abortada.
 const CORE = [

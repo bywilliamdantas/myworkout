@@ -1,6 +1,6 @@
 const STORAGE_KEY = "gym-data";
 const THEME_KEY = "gym-theme";
-const APP_VERSION = "v5.0";
+const APP_VERSION = "v5.1";
 const SCHEMA_VERSION = 3;
 const AUTOBACKUP_KEY = "gym-autobackups";
 const AUTOBACKUP_MAX = 5;
@@ -65,12 +65,20 @@ function readSession(){
     const raw = window.localStorage.getItem(SESSION_KEY) || window.sessionStorage.getItem(SESSION_KEY);
     if(!raw) return null;
     const s = JSON.parse(raw);
-    if(s && s.username) return { username: s.username, name: s.name || s.username };
+    if(s && s.username){
+      // a sessão vale só até o fim do dia em que foi feito o login — mesmo
+      // com "lembrar credenciais" marcado, todo dia novo exige login de novo.
+      if(!s.loginDay || s.loginDay !== todayKey()){
+        clearSession();
+        return null;
+      }
+      return { username: s.username, name: s.name || s.username };
+    }
   }catch(e){}
   return null;
 }
 function writeSession(user, keep){
-  const raw = JSON.stringify({ username: user.username, name: user.name });
+  const raw = JSON.stringify({ username: user.username, name: user.name, loginDay: todayKey() });
   try{
     if(keep){ window.localStorage.setItem(SESSION_KEY, raw); window.sessionStorage.removeItem(SESSION_KEY); }
     else { window.sessionStorage.setItem(SESSION_KEY, raw); window.localStorage.removeItem(SESSION_KEY); }
@@ -78,6 +86,19 @@ function writeSession(user, keep){
 }
 function clearSession(){
   try{ window.localStorage.removeItem(SESSION_KEY); window.sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+// Se o app ficar aberto (PWA em standalone) até depois da virada do dia,
+// isso detecta e manda de volta pro login sem esperar um recarregamento.
+function enforceSessionExpiry(){
+  if(!currentUser) return;
+  const still = readSession();
+  if(!still){
+    currentUser = null;
+    overlay = null;
+    try{ window.location.hash = ""; }catch(e){}
+    renderLogin();
+    showToast("Um novo dia começou — faça login de novo.");
+  }
 }
 
 async function doLogin(username, password, keep){
@@ -606,13 +627,18 @@ function nextWorkoutLetter(){
   if(idx === -1) return order[0];
   return order[(idx + 1) % order.length];
 }
+function dayHasTraining(dateKey){
+  return sessionsFor(dateKey).some(s => !isRestLetter(s.letter));
+}
 function computeStreak(){
+  // conta só sequência de dias com treino de verdade; um dia de descanso
+  // (ou um dia sem nada registrado) interrompe a sequência.
   let cursor = new Date();
-  if(!state.sessions[todayKey()]){
+  if(!dayHasTraining(todayKey())){
     cursor.setDate(cursor.getDate() - 1);
   }
   let streak = 0;
-  while(state.sessions[dateKeyFromDate(cursor)]){
+  while(dayHasTraining(dateKeyFromDate(cursor))){
     streak++;
     cursor.setDate(cursor.getDate() - 1);
   }
@@ -3095,7 +3121,7 @@ function renderLogin(){
           <input type="checkbox" id="loginKeep" checked>
           <span class="slider"></span>
         </span>
-        <span>Manter conectado</span>
+        <span>Lembrar credenciais</span>
       </label>
 
       ${authError ? `<div class="login-error">${escapeHtml(authError)}</div>` : ""}
@@ -3801,6 +3827,8 @@ function nextAvailableLetter(){
 
   document.addEventListener("visibilitychange", () => {
     if(document.visibilityState === "visible" && currentUser){
+      enforceSessionExpiry();
+      if(!currentUser) return;
       checkReminder();
       renderRestTimer();
       renderHeroClock();
@@ -3808,7 +3836,12 @@ function nextAvailableLetter(){
       backgroundUpdateCheck();
     }
   });
-  setInterval(() => { if(currentUser) checkReminder(); }, 5 * 60 * 1000);
+  setInterval(() => {
+    if(currentUser){
+      enforceSessionExpiry();
+      if(currentUser) checkReminder();
+    }
+  }, 5 * 60 * 1000);
   window.addEventListener("beforeunload", () => {
     if(!currentUser) return;
     try { window.localStorage.setItem(storageKey(), JSON.stringify(state)); } catch(e){}

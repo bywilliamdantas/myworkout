@@ -50,9 +50,12 @@ você usa em outro lugar importante.
 O `users.json` de exemplo já vem com o usuário **demo** / senha **demo123**
 — troque ou remova antes de usar de verdade.
 
-Marcar **"Manter conectado"** na tela de login guarda a sessão no aparelho
-(sobrevive a fechar o app); sem marcar, a sessão dura só enquanto a aba/app
-está aberto.
+Marcar **"Lembrar credenciais"** na tela de login guarda a sessão no
+aparelho (sobrevive a fechar o app); sem marcar, a sessão dura só enquanto a
+aba/app está aberto. Em ambos os casos a sessão vale só até o fim do dia:
+todo dia (depois da meia-noite) é preciso fazer login de novo, mesmo com
+"Lembrar credenciais" marcado — inclusive se o app ficar aberto durante a
+virada do dia, ele detecta e volta para a tela de login sozinho.
 
 ## Novidades desta versão
 
