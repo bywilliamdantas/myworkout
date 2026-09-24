@@ -1,6 +1,6 @@
 const STORAGE_KEY = "gym-data";
 const THEME_KEY = "gym-theme";
-const APP_VERSION = "v5.1";
+const APP_VERSION = "v5.7";
 const SCHEMA_VERSION = 3;
 const AUTOBACKUP_KEY = "gym-autobackups";
 const AUTOBACKUP_MAX = 5;
@@ -11,6 +11,12 @@ let currentUser = null;
 let authError = "";
 let authBusy = false;
 let activeTab = "inicio";
+let treinosView = "list"; // "list" | "edit"
+let treinosFilter = "all";
+let treinosEditKey = null;
+let perfilOpen = false;
+let perfilEditingName = false;
+let dadosBackupOpen = false;
 const TABS = ["inicio", "treinos", "historico", "progresso", "ajustes"];
 
 function storageKey(){ return currentUser ? `${STORAGE_KEY}:${currentUser.username}` : STORAGE_KEY; }
@@ -127,9 +133,50 @@ function getTabFromHash(){
   const h = (window.location.hash || "").replace(/^#\/?/, "");
   return TABS.includes(h) ? h : null;
 }
+function openPerfil(){
+  haptic(6);
+  perfilOpen = true;
+  perfilEditingName = false;
+  render();
+  const scroller = document.getElementById("app");
+  if(scroller) scroller.scrollTop = 0;
+}
+function closePerfil(){
+  perfilOpen = false;
+  perfilEditingName = false;
+  render();
+}
+function resizeImageFile(file, maxSize){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode failed"));
+      img.onload = () => {
+        let { width, height } = img;
+        if(width > height){ if(width > maxSize){ height = Math.round(height * maxSize / width); width = maxSize; } }
+        else { if(height > maxSize){ width = Math.round(width * maxSize / height); height = maxSize; } }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 function goTab(tab, opts){
   if(!TABS.includes(tab)) return;
   activeTab = tab;
+  perfilOpen = false;
+  dadosBackupOpen = false;
+  if(tab === "treinos" && (!opts || !opts.keepWorkoutView)){
+    treinosView = "list";
+    treinosEditKey = null;
+  }
   try{ window.location.hash = "/" + tab; }catch(e){}
   render();
   if(!opts || !opts.keepScroll){
@@ -191,6 +238,8 @@ const ICONS = {
   upload: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 5h16"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg>`,
   chart: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l3-4 3 3 4-6"/></svg>`,
+  flame: `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12.5 2.4c.7 2.7-1.9 4-2.3 6.6-.3 2 .8 3.3 2.3 3.3 1.8 0 3-1.4 2.8-3.2 1.6 1.3 2.7 3.4 2.7 5.4a5.5 5.5 0 0 1-11 0c0-4.7 3.2-7.2 5.5-12.1Z"/></svg>`,
+  calendarSmall: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M16 3v4M8 3v4M3.5 10h17"/></svg>`,
   moon: `<svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>`,
   moonSmall: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>`,
   sunSmall: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`,
@@ -210,7 +259,17 @@ const ICONS = {
   pause: `<svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>`,
   copy: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>`,
   link: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>`,
-  trophy: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>`
+  trophy: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>`,
+  exChest: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4M17 12h4"/><rect x="7" y="9" width="10" height="6" rx="1.5"/></svg>`,
+  exBack: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"/><path d="M7.5 9.5 12 14l4.5-4.5"/><path d="M5 21h14"/></svg>`,
+  exLegs: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12"/><path d="M12 4v6"/><path d="M12 10 8 20M12 10l4 10"/></svg>`,
+  exShoulders: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2"/><path d="M12 7v9"/><path d="M8 11h8"/><path d="M9 21l3-5 3 5"/></svg>`,
+  exArms: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19c-1-4 1-6 1-9a3 3 0 0 1 6 0c0 2.5-1.5 3.5-1.5 5.5"/><path d="M11.5 15.5c1.2 1.2 3.3 1.2 4.5-.3"/></svg>`,
+  exCore: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3.5" width="12" height="17" rx="3"/><path d="M12 3.5v17M6 9h12M6 14.5h12"/></svg>`,
+  bell: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>`,
+  help: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2-2.4 3.5"/><path d="M12 17.2v.1"/></svg>`,
+  logout: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>`,
+  camera: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4Z"/><circle cx="12" cy="13.5" r="3.2"/></svg>`
 };
 
 function pad(n){ return String(n).padStart(2,"0"); }
@@ -297,6 +356,26 @@ function safeUrl(u){
 }
 
 function isCardio(ex){ return ex && ex.type === "cardio"; }
+
+const EX_CATEGORY_RULES = [
+  { icon: "exChest", color: "#ff5a1f", test: /supino|peito|peck|crucifixo|voador|cross.?over/i },
+  { icon: "exBack", color: "#2f7fe0", test: /puxada|remada|costas|barra fixa|pulldown|dorsal|levantamento terra/i },
+  { icon: "exLegs", color: "#30b857", test: /agachamento|leg press|extensora|flexora|perna|panturrilha|avanço|afund|stiff|glúte|glute|hack/i },
+  { icon: "exShoulders", color: "#8b5cf6", test: /desenvolvimento|elevação lateral|elevação frontal|ombro|arnold|encolhimento/i },
+  { icon: "exArms", color: "#e0472f", test: /rosca|tríceps|triceps|bíceps|biceps|paralelas|testa/i },
+  { icon: "exCore", color: "#e0a62f", test: /abdomin|prancha|abs\b|oblíquo/i }
+];
+function exerciseVisual(ex){
+  if(isCardio(ex)) return { icon: ICONS.cardio, color: "#ff5a1f" };
+  const name = ex && ex.name || "";
+  for(const r of EX_CATEGORY_RULES){ if(r.test.test(name)) return { icon: ICONS[r.icon], color: r.color }; }
+  return { icon: ICONS.dumbbell, color: "#8a8a93" };
+}
+function exThumbHtml(ex, size){
+  const v = exerciseVisual(ex);
+  const cls = size === "sm" ? "ex-thumb ex-thumb-sm" : "ex-thumb";
+  return `<span class="${cls}" style="background:${v.color}1f;color:${v.color}">${v.icon}</span>`;
+}
 function newSessionId(){ return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
 function getThemePref(){
@@ -349,7 +428,9 @@ let state = {
     weekStartsMonday: false,
     restTimerActive: null,
     unit: "kg",
-    keepAwake: true
+    keepAwake: true,
+    avatarUrl: null,
+    displayName: ""
   }
 };
 let loadFailed = false;
@@ -451,6 +532,8 @@ function migrateSettings(s){
   if(s.settings.restTimerActive === undefined) s.settings.restTimerActive = null;
   if(s.settings.unit !== "kg" && s.settings.unit !== "lb") s.settings.unit = "kg";
   if(s.settings.keepAwake === undefined) s.settings.keepAwake = true;
+  if(s.settings.avatarUrl === undefined) s.settings.avatarUrl = null;
+  if(s.settings.displayName === undefined) s.settings.displayName = "";
 }
 function migrateActiveSession(s){
   if(!s.activeSession || typeof s.activeSession !== "object"){
@@ -571,10 +654,52 @@ function colorFor(key, order){
   const idx = order.indexOf(key);
   return PALETTE[idx >= 0 ? idx % PALETTE.length : 0];
 }
+function userDisplayName(){
+  return (state.settings.displayName && state.settings.displayName.trim()) || currentUser.name || currentUser.username;
+}
+function userInitial(){
+  const n = userDisplayName().trim();
+  return n ? n[0].toUpperCase() : "?";
+}
+function avatarInnerHtml(size){
+  const url = state.settings.avatarUrl;
+  if(url) return `<img src="${escapeAttr(url)}" alt="" class="avatar-img">`;
+  return `<span class="avatar-fallback">${escapeHtml(userInitial())}</span>`;
+}
 function workoutLabel(key){
   const w = state.workouts[key];
   if(!w) return key;
   return w.isRest ? "descanso" : `Treino ${key}`;
+}
+
+const MUSCLE_GROUPS = [
+  { cat: "Peito", test: /peito|peitoral|supino/i },
+  { cat: "Costas", test: /costas|dorsal|puxada|remada/i },
+  { cat: "Pernas", test: /perna|quadríceps|posterior|agachamento|glúteo|panturrilha/i },
+  { cat: "Ombro", test: /ombro|deltoide/i },
+  { cat: "Braços", test: /bíceps|biceps|tríceps|triceps|braço/i },
+  { cat: "Full Body", test: /full ?body|corpo inteiro/i }
+];
+function categoryForWorkout(w){
+  if(!w) return "Outros";
+  if(w.isRest) return "Descanso";
+  const name = w.name || "";
+  for(const g of MUSCLE_GROUPS){ if(g.test.test(name)) return g.cat; }
+  return "Outros";
+}
+function estimateWorkoutMs(w){
+  if(!w || w.isRest || !w.exercises || !w.exercises.length) return 0;
+  let total = 0;
+  w.exercises.forEach(ex => {
+    if(isCardio(ex)){
+      total += (parseNum(ex.mins) || 20) * 60000;
+    } else {
+      const sets = parseNum(ex.sets) || 3;
+      const rest = parseNum(ex.rest) || 60;
+      total += sets * (rest + 40) * 1000;
+    }
+  });
+  return total;
 }
 
 function sessionsFor(dateKey){
@@ -777,6 +902,23 @@ function totalDurationForDay(dateKey){
     if(ms) total += ms;
   });
   return total > 0 ? total : null;
+}
+function computeSessionIntensity(w, log){
+  if(!w || w.isRest || !w.exercises || !w.exercises.length) return null;
+  let total = 0, done = 0;
+  w.exercises.forEach(ex => {
+    const sets = (log && log[ex.id]) || [];
+    sets.forEach(s => {
+      if(!isWork(s)) return;
+      total++;
+      if(isPerformed(s)) done++;
+    });
+  });
+  if(total === 0) return null;
+  const ratio = done / total;
+  if(ratio >= 0.9) return "Alta";
+  if(ratio >= 0.5) return "Média";
+  return "Baixa";
 }
 function restForExercise(exId){
   const ex = findExercise(exId);
@@ -1437,52 +1579,74 @@ function render(){
   else if(todayCount === 1) eyebrowText = "Treino de hoje";
   else if(todayCount > 1) eyebrowText = todayCount + " treinos hoje";
 
-  let statusIcon = ICONS.play;
-  let statusCls = "state-idle";
-  if(isRunning){ statusIcon = ICONS.play; statusCls = "state-running"; }
-  else if(isPaused){ statusIcon = ICONS.pause; statusCls = "state-paused"; }
-
   const heroSub = todayCount > 0
     ? (todayDuration ? `concluído em ${fmtDuration(todayDuration)}` : "concluído hoje")
     : state.workouts[heroKey]?.isRest
       ? "dia de recuperação"
       : hasActive
-        ? "toque no ícone para registrar"
-        : "pronto para começar";
+        ? "toque em Ver detalhes para registrar"
+        : "pronto para começar?";
 
-  const heroHtml = `<div class="card" id="heroCard">
-    <p class="eyebrow">${eyebrowText} · ${weekdayLabel}</p>
-    <div class="hero-head">
-      <button class="status-btn ${statusCls}" id="statusBtn" aria-label="Abrir séries do treino">
-        ${statusIcon}
-      </button>
-      <div class="hero-info">
-        <div class="workout-name">${escapeHtml(heroW.name || workoutLabel(heroKey))}</div>
-        <div class="workout-sub">${heroSub}</div>
-      </div>
+  let heroActionsHtml;
+  if(!hasActive){
+    heroActionsHtml = `<div class="hero-v2-actions">
+      <button type="button" class="hero-v2-btn primary" id="startBtn">${ICONS.play} Iniciar</button>
+      <button type="button" class="hero-v2-btn ghost" id="statusBtn">${ICONS.calendarSmall} Detalhes</button>
+    </div>`;
+  } else if(isRunning){
+    heroActionsHtml = `<div class="hero-v2-actions">
+      <button type="button" class="hero-v2-btn primary" id="stopBtn">${ICONS.pause} Pausar</button>
+      <button type="button" class="hero-v2-btn ghost" id="endBtn">Finalizar</button>
+    </div>
+    <button type="button" class="hero-v2-link" id="statusBtn">Ver detalhes do treino</button>`;
+  } else {
+    heroActionsHtml = `<div class="hero-v2-actions">
+      <button type="button" class="hero-v2-btn primary" id="startBtn">${ICONS.play} Retomar</button>
+      <button type="button" class="hero-v2-btn ghost" id="endBtn">Finalizar</button>
+    </div>
+    <button type="button" class="hero-v2-link" id="statusBtn">Ver detalhes do treino</button>`;
+  }
+
+  const heroSecondaryRowHtml = (!hasActive && todayCount > 0)
+    ? `<div class="hero-v2-secondary-row">
+         <button type="button" class="hero-v2-chip" id="editTodayBtn">${ICONS.pencil} Editar</button>
+         <button type="button" class="hero-v2-chip undo" id="undoTodayBtn">${ICONS.trash} Desfazer</button>
+         <button type="button" class="hero-v2-chip" id="addSecondBtn">${ICONS.plus} Novo Treino</button>
+       </div>`
+    : "";
+
+  const heroHtml = `<div class="card hero-card-v2" id="heroCard">
+    <div class="hero-v2-top">
+      <span class="hero-v2-badge">${eyebrowText} · ${weekdayLabel}</span>
       <div class="hero-clock hidden" id="heroClock">
         ${ICONS.timer}
         <span class="clock-time" id="heroClockTime">00:00</span>
       </div>
     </div>
-    <div class="control-row">
-      <button class="ctrl-btn start ${isRunning ? "disabled" : ""}" id="startBtn" ${isRunning ? "disabled" : ""}>Start</button>
-      <button class="ctrl-btn stop" id="stopBtn" ${isRunning ? "" : "disabled"}>Stop</button>
-      <button class="ctrl-btn end" id="endBtn" ${hasActive ? "" : "disabled"}>End</button>
+    <div class="hero-v2-body">
+      <div class="hero-v2-name">${escapeHtml(heroW.name || workoutLabel(heroKey))}</div>
+      <div class="hero-v2-sub">${heroSub}</div>
     </div>
-    ${!hasActive && todayCount > 0
-      ? `<div class="hero-action-row">
-           <button class="hero-action edit" id="editTodayBtn">Editar</button>
-           <button class="hero-action undo" id="undoTodayBtn">Desfazer</button>
-           <button class="hero-action second" id="addSecondBtn">${ICONS.plus} Novo Treino</button>
-         </div>`
-      : ""}
+    ${heroActionsHtml}
+    ${heroSecondaryRowHtml}
   </div>`;
 
   const statsRowHtml = `<div class="card stats-card">
-    <div class="stat streak"><div class="stat-num" data-count="${streak}">0</div><div class="stat-label">dias seguidos</div></div>
-    <div class="stat"><div class="stat-num" data-count="${thisWeek}">0</div><div class="stat-label">essa semana</div></div>
-    <div class="stat"><div class="stat-num" data-count="${total}">0</div><div class="stat-label">no mês</div></div>
+    <div class="stat streak">
+      <div class="stat-icon" style="background:rgba(255,90,31,0.14);color:var(--accent);">${ICONS.flame}</div>
+      <div class="stat-num" data-count="${streak}">0</div>
+      <div class="stat-label">dias seguidos</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon" style="background:rgba(47,127,224,0.14);color:var(--info);">${ICONS.calendarSmall}</div>
+      <div class="stat-num" data-count="${thisWeek}">0</div>
+      <div class="stat-label">essa semana</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon" style="background:rgba(48,184,87,0.14);color:var(--ok);">${ICONS.chart}</div>
+      <div class="stat-num" data-count="${total}">0</div>
+      <div class="stat-label">no mês</div>
+    </div>
   </div>`;
 
   const hour = now.getHours();
@@ -1494,6 +1658,7 @@ function render(){
       <div class="greet-hello">${greetWord}, <span style="color:var(--accent)">${escapeHtml(firstName)}</span></div>
       <div class="greet-date">${dateLabel}</div>
     </div>
+    <button type="button" class="greet-avatar" id="openPerfilBtn" aria-label="Abrir perfil">${avatarInnerHtml()}</button>
   </div>`;
 
   const weekDayShort = ["D","S","T","Q","Q","S","S"];
@@ -1535,16 +1700,12 @@ function render(){
 
   const homeHtml = `${greetHtml}${bannersHtml}${heroHtml}${statsRowHtml}${weekDotsHtml}${lastRecordHtml}${quickActionsHtml}`;
 
-  let workoutsHtml = "";
-  state.order.forEach((key, idx) => {
+  function renderWorkoutEditCard(key){
     const w = state.workouts[key];
+    if(!w) return "";
     const color = colorFor(key, state.order);
-    workoutsHtml += `<div class="card workout-card" data-letter="${key}">
+    return `<div class="card workout-card" data-letter="${key}">
       <div class="workout-head">
-        <div class="reorder-btns">
-          <button class="reorder-btn" data-role="moveup" data-letter="${key}" ${idx===0?"disabled":""} aria-label="mover para cima">${ICONS.up}</button>
-          <button class="reorder-btn" data-role="movedown" data-letter="${key}" ${idx===state.order.length-1?"disabled":""} aria-label="mover para baixo">${ICONS.down}</button>
-        </div>
         <div class="workout-chip" style="background:${color}">${w.isRest ? ICONS.moonSmall : key}</div>
         <input class="workout-title-input" data-role="wname" data-letter="${key}" value="${escapeAttr(w.name)}" placeholder="${w.isRest ? "Nome do descanso" : "Nome do treino"}" aria-label="Nome de ${w.isRest ? "descanso" : "treino " + key}">
         <span class="edit-pencil">${ICONS.pencil}</span>
@@ -1559,6 +1720,7 @@ function render(){
         <div class="exercise-row${(isLinkedNext(w, exIdx) || (exIdx > 0 && isLinkedNext(w, exIdx - 1))) ? " linked" : ""}" data-exid="${ex.id}">
           <div class="ex-row-top">
             <button type="button" class="ex-name-input ex-name-btn" data-role="openexname" data-letter="${key}" data-exid="${ex.id}" aria-label="Escolher nome do exercício">
+              ${exThumbHtml(ex, "sm")}
               <span class="ex-name-text ${ex.name ? "" : "placeholder"}">${ex.name ? escapeHtml(ex.name) : (cardio ? "Escolher exercício (Esteira, Bike...)" : "Escolher exercício")}</span>
               ${ICONS.pencil}
             </button>
@@ -1595,11 +1757,56 @@ function render(){
       <button class="add-exercise-btn" data-role="addex" data-letter="${key}">${ICONS.plus} Adicionar exercício</button>
       `}
     </div>`;
-  });
-  workoutsHtml += `<div class="row-2">
-    <button class="add-workout-btn" id="addWorkoutBtn">${ICONS.plus} Novo treino</button>
-    <button class="add-workout-btn" id="addRestBtn">${ICONS.moonSmall} Descanso</button>
-  </div>`;
+  }
+
+  let workoutsHtml = "";
+  if(treinosView === "edit" && treinosEditKey && state.workouts[treinosEditKey]){
+    workoutsHtml = `<button type="button" class="back-link" id="treinosBackBtn">${ICONS.left} Treinos</button>`
+      + renderWorkoutEditCard(treinosEditKey);
+  } else {
+    treinosView = "list";
+    const cats = [];
+    state.order.forEach(k => {
+      const c = categoryForWorkout(state.workouts[k]);
+      if(!cats.includes(c)) cats.push(c);
+    });
+    if(!cats.includes(treinosFilter)) treinosFilter = "all";
+    const filterChipsHtml = cats.length > 1 ? `<div class="wf-chips">
+      <button type="button" class="wf-chip ${treinosFilter === "all" ? "active" : ""}" data-role="wfilter" data-cat="all">Todos</button>
+      ${cats.map(c => `<button type="button" class="wf-chip ${treinosFilter === c ? "active" : ""}" data-role="wfilter" data-cat="${escapeAttr(c)}">${escapeHtml(c)}</button>`).join("")}
+    </div>` : "";
+
+    const lastDoneLetter = todayArr.length ? todayArr[todayArr.length - 1].letter : null;
+
+    workoutsHtml = filterChipsHtml;
+    state.order.forEach((key, idx) => {
+      const w = state.workouts[key];
+      const cat = categoryForWorkout(w);
+      if(treinosFilter !== "all" && cat !== treinosFilter) return;
+      const color = colorFor(key, state.order);
+      const estMs = estimateWorkoutMs(w);
+      const metaTxt = w.isRest
+        ? "Dia de descanso"
+        : `${estMs ? fmtDuration(estMs) + " · " : ""}${w.exercises.length} exercício${w.exercises.length === 1 ? "" : "s"}`;
+      const doneToday = key === lastDoneLetter;
+      workoutsHtml += `<div class="workout-list-card" data-role="openworkout" data-letter="${key}" role="button" tabindex="0">
+        <span class="wl-icon" style="background:${color}22;color:${color}">${w.isRest ? ICONS.moonSmall : ICONS.dumbbell}</span>
+        <span class="wl-info">
+          <span class="wl-name">${escapeHtml(w.name)}</span>
+          <span class="wl-meta">${metaTxt}</span>
+        </span>
+        ${state.order.length > 1 ? `<span class="wl-reorder">
+          <button type="button" class="reorder-btn" data-role="moveup" data-letter="${key}" ${idx === 0 ? "disabled" : ""} aria-label="mover para cima">${ICONS.up}</button>
+          <button type="button" class="reorder-btn" data-role="movedown" data-letter="${key}" ${idx === state.order.length - 1 ? "disabled" : ""} aria-label="mover para baixo">${ICONS.down}</button>
+        </span>` : ""}
+        ${doneToday ? `<span class="wl-check">${ICONS.checkSm}</span>` : `<span class="wl-arrow">${ICONS.right}</span>`}
+      </div>`;
+    });
+    workoutsHtml += `<div class="row-2">
+      <button class="add-workout-btn" id="addWorkoutBtn">${ICONS.plus} Novo treino</button>
+      <button class="add-workout-btn" id="addRestBtn">${ICONS.moonSmall} Descanso</button>
+    </div>`;
+  }
 
   const legendWorkouts = state.order.filter(k => !state.workouts[k]?.isRest);
   const hasRest = state.order.some(k => state.workouts[k]?.isRest);
@@ -1648,15 +1855,14 @@ function render(){
 
   const ajustesHtml = `
     ${blockHeader("Conta", true)}
-    <div class="card">
-      <div class="reminder-row">
-        <div style="display:flex;flex-direction:column;gap:2px;">
-          <span>${escapeHtml(currentUser.name || currentUser.username)}</span>
-          <span style="font-size:11px;color:var(--text-muted);">@${escapeHtml(currentUser.username)}</span>
-        </div>
-        <button class="footer-btn danger" id="logoutBtn" style="flex:none;padding:9px 14px;">Sair</button>
-      </div>
-    </div>
+    <button type="button" class="card conta-row" id="openPerfilFromAjustesBtn">
+      <span class="conta-avatar">${avatarInnerHtml()}</span>
+      <span class="conta-info">
+        <span class="conta-name">${escapeHtml(userDisplayName())}</span>
+        <span class="conta-username">@${escapeHtml(currentUser.username)}</span>
+      </span>
+      ${ICONS.right}
+    </button>
 
     ${blockHeader("Treino")}
     <div class="card">
@@ -1715,6 +1921,17 @@ function render(){
     </div>
 
     ${blockHeader("Dados e backup")}
+    <button type="button" class="card conta-row" id="openDadosBackupBtn">
+      <span class="conta-avatar" style="background:var(--surface-3);color:var(--text-primary);">${ICONS.download}</span>
+      <span class="conta-info">
+        <span class="conta-name">Dados e backup</span>
+        <span class="conta-username">Último backup: ${bkTxt} · v${APP_VERSION}</span>
+      </span>
+      ${ICONS.right}
+    </button>`;
+
+  const dadosBackupHtml = `<button type="button" class="back-link" id="dadosBackupBackBtn">${ICONS.left} Ajustes</button>
+    <h1 class="tab-title" style="margin-top:2px;">Dados e backup</h1>
     <div class="card">
       <div class="reminder-row">
         <span>Proteção contra limpeza do aparelho</span>
@@ -1757,9 +1974,43 @@ function render(){
     <input type="file" id="importFile" accept="application/json">
     <div class="app-footer">William Dantas - ©2026</div>`;
 
+  const perfilHtml = `<div class="perfil-page">
+    <button type="button" class="back-link perfil-back" id="perfilBackBtn">${ICONS.left} Voltar</button>
+    <div class="perfil-head">
+      <div class="perfil-avatar-wrap">
+        <div class="perfil-avatar">${avatarInnerHtml()}</div>
+        <button type="button" class="perfil-avatar-edit" id="perfilAvatarBtn" aria-label="Alterar foto">${ICONS.camera}</button>
+        <input type="file" id="perfilAvatarInput" accept="image/*" hidden>
+      </div>
+      <div class="perfil-name-row">
+        <span class="perfil-name ${perfilEditingName ? "hidden" : ""}" id="perfilNameText">${escapeHtml(userDisplayName())}</span>
+        <input class="perfil-name-input ${perfilEditingName ? "" : "hidden"}" id="perfilNameInput" value="${escapeAttr(userDisplayName())}" maxlength="40" placeholder="Seu nome">
+        <button type="button" class="perfil-edit-btn" id="perfilEditBtn">${perfilEditingName ? "Salvar" : "Editar"}</button>
+      </div>
+      <div class="perfil-username">@${escapeHtml(currentUser.username)}</div>
+      <div class="perfil-stats">
+        <div class="perfil-stat"><span class="perfil-stat-num" data-count="${streak}">0</span><span class="perfil-stat-label">dias seguidos</span></div>
+        <div class="perfil-stat"><span class="perfil-stat-num" data-count="${thisWeek}">0</span><span class="perfil-stat-label">essa semana</span></div>
+        <div class="perfil-stat"><span class="perfil-stat-num" data-count="${total}">0</span><span class="perfil-stat-label">no mês</span></div>
+      </div>
+    </div>
+    <div class="card perfil-menu">
+      <button type="button" class="perfil-menu-item" id="perfilAjustesBtn">${ICONS.user}<span>Meus dados</span>${ICONS.right}</button>
+      <button type="button" class="perfil-menu-item" id="perfilNotifBtn">${ICONS.bell}<span>Notificações</span>${ICONS.right}</button>
+      <button type="button" class="perfil-menu-item" id="perfilSuporteBtn">${ICONS.help}<span>Suporte</span>${ICONS.right}</button>
+      <button type="button" class="perfil-menu-item danger" id="logoutBtn">${ICONS.logout}<span>Sair</span></button>
+    </div>
+  </div>`;
+
   const TAB_TITLES = { treinos: "Treinos", historico: "Histórico", progresso: "Progresso", ajustes: "Ajustes" };
   let content;
-  if(activeTab === "treinos") content = `<h1 class="tab-title">${TAB_TITLES.treinos}</h1>${workoutsHtml}`;
+  if(perfilOpen){
+    content = perfilHtml;
+  } else if(dadosBackupOpen){
+    content = dadosBackupHtml;
+  } else if(activeTab === "treinos") content = treinosView === "edit"
+    ? workoutsHtml
+    : `<h1 class="tab-title">${TAB_TITLES.treinos}</h1>${workoutsHtml}`;
   else if(activeTab === "historico") content = `<h1 class="tab-title">${TAB_TITLES.historico}</h1>${historyHtml}`;
   else if(activeTab === "progresso") content = `<h1 class="tab-title">${TAB_TITLES.progresso}</h1>${progressHtml}`;
   else if(activeTab === "ajustes") content = `<h1 class="tab-title">${TAB_TITLES.ajustes}</h1>${ajustesHtml}`;
@@ -2070,11 +2321,13 @@ function renderExercisePickerList(){
     if(mode === "add"){
       return `<label class="ex-picker-item">
         <input type="checkbox" data-name="${escapeAttr(n)}" ${selected.has(n) ? "checked" : ""}>
+        ${exThumbHtml({ name: n }, "sm")}
         <span>${escapeHtml(n)}</span>
       </label>`;
     }
     return `<button type="button" class="ex-picker-item" data-role="pickexname" data-name="${escapeAttr(n)}">
-      ${escapeHtml(n)}
+      ${exThumbHtml({ name: n }, "sm")}
+      <span>${escapeHtml(n)}</span>
     </button>`;
   };
   const customRowHtml = () => {
@@ -2317,7 +2570,7 @@ function renderDayOverlay(root){
   const [y,m,dd] = dateKey.split("-").map(Number);
   const d = new Date(y, m-1, dd);
   const isToday = dateKey === todayKey();
-  const dateLabel = isToday ? "Hoje" : `${WEEKDAY_FULL[d.getDay()]}, ${dd} de ${MONTH_NAMES_FULL[m-1]}`;
+  const dateLabel = `${WEEKDAY_FULL[d.getDay()]}, ${dd} de ${MONTH_NAMES_FULL[m-1]}`;
   const w = state.workouts[letter] || { exercises: [] };
 
   const a = state.activeSession;
@@ -2328,29 +2581,7 @@ function renderDayOverlay(root){
 
   const hasExercises = !w.isRest && w.exercises.length > 0;
 
-  let html = `<div class="sheet-backdrop" id="sheetBackdrop"></div>`;
-  html += `<div class="sheet" role="dialog" aria-modal="true" aria-label="Registrar treino" id="daySheet">
-    <div class="sheet-handle" id="sheetHandle"></div>
-    <div class="sheet-header">
-      <div class="sheet-date">${escapeHtml(dateLabel)}</div>
-      <button class="icon-btn" id="sheetClose" aria-label="fechar">${ICONS.close}</button>
-    </div>
-    ${hasActiveHere ? `
-      <div class="sheet-clock" id="sheetClock">
-        <span class="clock-icon">${ICONS.timer}</span>
-        <span class="clock-time" id="sheetClockTime">${fmtClock(elapsed)}</span>
-        <span class="clock-label">em andamento</span>
-      </div>` : ""}
-    <div class="sheet-chips">
-      ${state.order.map(k => {
-        const wk = state.workouts[k];
-        const label = wk?.isRest ? "Desc." : k;
-        const active = k === letter;
-        return `<button class="chip" data-role="sheetletter" data-letter="${k}" aria-pressed="${active}" style="${active ? `background:${colorFor(k,state.order)};color:#fff;border-color:transparent` : ""}">${label}</button>`;
-      }).join("")}
-    </div>
-    ${hasExercises ? `<p class="sheet-hint">Toque no número da série para marcar aquecimento (A), drop set (D) ou até a falha (F). Aquecimento não entra nas estatísticas.</p>` : ""}
-    ${w.isRest
+  const exercisesHtml = w.isRest
       ? `<div class="sheet-empty">Dia de descanso — nada para registrar.</div>`
       : (w.exercises.length ? `<div class="sheet-exercises">${w.exercises.map((ex, i) => {
           const linked = isLinkedNext(w, i) || (i > 0 && isLinkedNext(w, i - 1));
@@ -2360,8 +2591,48 @@ function renderDayOverlay(root){
             <div class="empty-icon">${ICONS.dumbbell}</div>
             <p class="empty-title">Treino sem exercícios</p>
             <p class="empty-sub">Adicione exercícios na seção "Meus treinos" antes de registrar.</p>
-          </div>`)
-    }
+          </div>`);
+
+  let durationLabel = "—";
+  if(hasActiveHere) durationLabel = fmtClock(elapsed);
+  else if(overlay.sessionId){
+    const sess = sessionsFor(dateKey).find(s => s.id === overlay.sessionId);
+    const ms = sess ? sessionDurationMs(sess) : null;
+    if(ms) durationLabel = fmtDuration(ms);
+  }
+  const intensity = computeSessionIntensity(w, log);
+
+  const color = colorFor(letter, state.order);
+  const sessionHeadHtml = `<div class="sheet-session-head">
+    <div class="ssh-top">
+      <span class="ssh-badge" style="background:${color}">${w.isRest ? ICONS.moonSmall : letter}</span>
+      <div class="ssh-titles">
+        <div class="ssh-name">${escapeHtml(w.name || workoutLabel(letter))}</div>
+        <div class="ssh-date">${isToday ? "Hoje" : escapeHtml(dateLabel)}${hasActiveHere ? ` · <span class="ssh-live">em andamento</span>` : ""}</div>
+      </div>
+      <button class="icon-btn" id="sheetClose" aria-label="fechar">${ICONS.close}</button>
+    </div>
+    ${hasExercises ? `<div class="ssh-stats">
+      <div class="ssh-stat"><span class="ssh-stat-num" id="sheetClockTime">${durationLabel}</span><span class="ssh-stat-label">duração</span></div>
+      <div class="ssh-stat"><span class="ssh-stat-num">${w.exercises.length}</span><span class="ssh-stat-label">exercício${w.exercises.length === 1 ? "" : "s"}</span></div>
+      <div class="ssh-stat"><span class="ssh-stat-num">${intensity || "—"}</span><span class="ssh-stat-label">intensidade</span></div>
+    </div>` : ""}
+  </div>`;
+
+  let html = `<div class="sheet-backdrop" id="sheetBackdrop"></div>`;
+  html += `<div class="sheet" role="dialog" aria-modal="true" aria-label="Registrar treino" id="daySheet">
+    <div class="sheet-handle" id="sheetHandle"></div>
+    ${sessionHeadHtml}
+    <div class="sheet-chips">
+      ${state.order.map(k => {
+        const wk = state.workouts[k];
+        const label = wk?.isRest ? "Desc." : k;
+        const active = k === letter;
+        return `<button class="chip" data-role="sheetletter" data-letter="${k}" aria-pressed="${active}" style="${active ? `background:${colorFor(k,state.order)};color:#fff;border-color:transparent` : ""}">${label}</button>`;
+      }).join("")}
+    </div>
+    ${hasExercises ? `<p class="sheet-hint">Toque no número da série para marcar aquecimento (A), drop set (D) ou até a falha (F). Aquecimento não entra nas estatísticas.</p>` : ""}
+    ${exercisesHtml}
     ${hasExercises ? `<label class="sheet-note-wrap"><span>Observações do treino</span>
       <textarea id="sessionNote" class="sheet-note-area" rows="2" placeholder="Sono, dor, energia…">${escapeHtml(overlay.note || "")}</textarea></label>` : ""}
     <div class="sheet-actions">
@@ -2377,7 +2648,7 @@ function renderDayOverlay(root){
 
   if(sheetClockInterval){ clearInterval(sheetClockInterval); sheetClockInterval = null; }
   const clockEl = document.getElementById("sheetClockTime");
-  if(clockEl){
+  if(clockEl && hasActiveHere){
     sheetClockInterval = setInterval(() => {
       const a2 = state.activeSession;
       const hasActive = (a2.state === "running" || a2.state === "paused") && dateKey === todayKey() && a2.letter === letter;
@@ -2625,12 +2896,14 @@ function exExtrasHtml(ex){
     <input class="sheet-note" type="text" data-role="exnote" data-exid="${ex.id}" value="${escapeAttr(meta.note || "")}" placeholder="Observação…" aria-label="Observação do exercício" autocomplete="off">
   </div>`;
 }
-function exNameHtml(ex, fallback, linked){
+function exNameHtml(ex, fallback, linked, completed){
   const url = safeUrl(ex.link);
   return `<div class="sheet-ex-name${linked ? " linked" : ""}">
-    <span class="sheet-ex-title">${isCardio(ex) ? ICONS.cardio + " " : ""}${escapeHtml(ex.name || fallback)}</span>
+    ${exThumbHtml(ex)}
+    <span class="sheet-ex-title">${escapeHtml(ex.name || fallback)}</span>
     ${linked ? `<span class="ss-badge">superset</span>` : ""}
     ${url ? `<a class="ex-link" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer" aria-label="Ver vídeo ou técnica">${ICONS.link}</a>` : ""}
+    ${completed ? `<span class="ex-done-badge" aria-label="exercício concluído">${ICONS.checkSm}</span>` : ""}
   </div>`;
 }
 
@@ -2641,12 +2914,14 @@ function renderStrengthRow(ex, log, dateKey, linked){
   const restSec = restForExercise(ex.id);
   const sug = suggestNext(ex, dateKey);
   const pr = exercisePRs(ex.id);
+  const workSets = sets.filter(isWork);
+  const allDone = workSets.length > 0 && workSets.every(s => s.done);
   const lastLabel = last
     ? `última vez: ${last.weight != null ? fmtW(last.weight) + " " + unit() : "—"} × ${last.reps != null ? last.reps : "—"}`
     : "primeira vez registrando";
   const restLabel = ex.ss ? "sem descanso (superset)" : `descanso ${restSec}s`;
   return `<div class="sheet-ex-row${linked ? " linked" : ""}" data-exid="${ex.id}">
-    ${exNameHtml(ex, "Exercício", linked)}
+    ${exNameHtml(ex, "Exercício", linked, allDone)}
     <div class="sheet-ex-last">${lastLabel} · ${restLabel}${pr ? ` · recorde ${fmtW(pr.maxWeight)} ${unit()}` : ""}</div>
     ${sug ? `<button type="button" class="suggest-chip" data-role="applysuggest" data-exid="${ex.id}"><span>${escapeHtml(sug.text)}</span><b>aplicar</b></button>` : ""}
     <div class="sheet-sets" data-exid="${ex.id}">
@@ -2685,11 +2960,12 @@ function renderCardioRow(ex, log, dateKey, linked){
   const last = lastLoggedValue(ex.id, dateKey);
   const sets = ensureCardioSets(log, ex.id);
   const def = setDefaults(ex, dateKey);
+  const allDone = sets.length > 0 && sets.every(s => s.done);
   const lastLabel = last && last.minutes != null
     ? `última vez: ${last.minutes} min`
     : "primeira vez registrando";
   return `<div class="sheet-ex-row${linked ? " linked" : ""}" data-exid="${ex.id}">
-    ${exNameHtml(ex, "Cardio", linked)}
+    ${exNameHtml(ex, "Cardio", linked, allDone)}
     <div class="sheet-ex-last">${lastLabel}</div>
     <div class="sheet-sets" data-exid="${ex.id}">
       ${sets.map((s, i) => {
@@ -3429,6 +3705,76 @@ function attachHandlers(){
     openConfirm("Sair da sua conta?", doLogout, { yesLabel: "Sair", noLabel: "Cancelar", yesStyle: "danger" });
   });
 
+  const openPerfilBtn = $("openPerfilBtn");
+  if(openPerfilBtn) openPerfilBtn.addEventListener("click", openPerfil);
+  const openPerfilFromAjustesBtn = $("openPerfilFromAjustesBtn");
+  if(openPerfilFromAjustesBtn) openPerfilFromAjustesBtn.addEventListener("click", openPerfil);
+  const perfilBackBtn = $("perfilBackBtn");
+  if(perfilBackBtn) perfilBackBtn.addEventListener("click", closePerfil);
+
+  const openDadosBackupBtn = $("openDadosBackupBtn");
+  if(openDadosBackupBtn) openDadosBackupBtn.addEventListener("click", () => {
+    haptic(6);
+    dadosBackupOpen = true;
+    render();
+    const scroller = document.getElementById("app");
+    if(scroller) scroller.scrollTop = 0;
+  });
+  const dadosBackupBackBtn = $("dadosBackupBackBtn");
+  if(dadosBackupBackBtn) dadosBackupBackBtn.addEventListener("click", () => {
+    dadosBackupOpen = false;
+    render();
+  });
+
+  const perfilAvatarBtn = $("perfilAvatarBtn");
+  const perfilAvatarInput = $("perfilAvatarInput");
+  if(perfilAvatarBtn && perfilAvatarInput){
+    perfilAvatarBtn.addEventListener("click", () => perfilAvatarInput.click());
+    perfilAvatarInput.addEventListener("change", async () => {
+      const file = perfilAvatarInput.files && perfilAvatarInput.files[0];
+      perfilAvatarInput.value = "";
+      if(!file) return;
+      try{
+        const dataUrl = await resizeImageFile(file, 200);
+        state.settings.avatarUrl = dataUrl;
+        render();
+        await persist();
+      } catch(e){
+        showToast("Não foi possível usar essa imagem");
+      }
+    });
+  }
+
+  const perfilEditBtn = $("perfilEditBtn");
+  if(perfilEditBtn) perfilEditBtn.addEventListener("click", async () => {
+    if(perfilEditingName){
+      const inp = $("perfilNameInput");
+      const v = inp ? inp.value.trim() : "";
+      state.settings.displayName = v;
+      perfilEditingName = false;
+      render();
+      await persist();
+    } else {
+      perfilEditingName = true;
+      render();
+      const inp = $("perfilNameInput");
+      if(inp){ inp.focus(); inp.select(); }
+    }
+  });
+  const perfilNameInput = $("perfilNameInput");
+  if(perfilNameInput){
+    perfilNameInput.addEventListener("keydown", (ev) => {
+      if(ev.key === "Enter"){ ev.preventDefault(); $("perfilEditBtn")?.click(); }
+    });
+  }
+
+  const perfilAjustesBtn = $("perfilAjustesBtn");
+  if(perfilAjustesBtn) perfilAjustesBtn.addEventListener("click", () => goTab("ajustes"));
+  const perfilNotifBtn = $("perfilNotifBtn");
+  if(perfilNotifBtn) perfilNotifBtn.addEventListener("click", () => goTab("ajustes"));
+  const perfilSuporteBtn = $("perfilSuporteBtn");
+  if(perfilSuporteBtn) perfilSuporteBtn.addEventListener("click", () => showToast("Fale com seu treinador para suporte"));
+
   const qaWeight = $("qaWeight");
   if(qaWeight) qaWeight.addEventListener("click", () => { haptic(6); openBodySheet(); });
 
@@ -3471,7 +3817,8 @@ function attachHandlers(){
   });
 
   document.querySelectorAll('[data-role="moveup"],[data-role="movedown"]').forEach(el => {
-    el.addEventListener("click", async () => {
+    el.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
       haptic(6);
       const key = el.dataset.letter;
       const dir = el.dataset.role === "moveup" ? -1 : 1;
@@ -3481,6 +3828,36 @@ function attachHandlers(){
       [state.order[idx], state.order[newIdx]] = [state.order[newIdx], state.order[idx]];
       render();
       await persist();
+    });
+  });
+
+  document.querySelectorAll('[data-role="openworkout"]').forEach(el => {
+    const open = () => {
+      haptic(6);
+      treinosEditKey = el.dataset.letter;
+      treinosView = "edit";
+      render();
+      const scroller = document.getElementById("app");
+      if(scroller) scroller.scrollTop = 0;
+    };
+    el.addEventListener("click", open);
+    el.addEventListener("keydown", (ev) => {
+      if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); open(); }
+    });
+  });
+
+  const treinosBackBtn = document.getElementById("treinosBackBtn");
+  if(treinosBackBtn) treinosBackBtn.addEventListener("click", () => {
+    treinosView = "list";
+    treinosEditKey = null;
+    render();
+  });
+
+  document.querySelectorAll('[data-role="wfilter"]').forEach(el => {
+    el.addEventListener("click", () => {
+      haptic(4);
+      treinosFilter = el.dataset.cat;
+      render();
     });
   });
 

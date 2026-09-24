@@ -2,7 +2,7 @@
   "users": [
     {
       "username": "william",
-      "name": "William",
+      "name": "William Dantas",
       "salt": "f85763b203bd",
       "hash": "811adc66c903761ea64bc02409adfe9e861a37e76cbace4b124f5980e6e41d3d"
     },
